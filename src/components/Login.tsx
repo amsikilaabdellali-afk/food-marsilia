@@ -34,9 +34,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] px-4">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center mb-4">
-            <span className="text-2xl">🍴</span>
-          </div>
+          <div className="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center mb-4 text-2xl">🍴</div>
           <h1 className="text-2xl font-bold text-white">Marsilia Food</h1>
           <p className="text-sm text-gray-500 mt-1">Système de gestion restaurant</p>
         </div>
@@ -44,18 +42,18 @@ export default function Login() {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="text-xs text-gray-400 mb-2 block">Code restaurant</label>
-              <input type="text" value={codeRestaurant} onChange={(e) => setCodeRestaurant(e.target.value)} placeholder="marsilia" className="w-full bg-[#0f0f0f] border border-gray-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-orange-500" required />
+              <input type="text" value={codeRestaurant} onChange={(e) => setCodeRestaurant(e.target.value)} placeholder="marsilia" className="w-full bg-[#0f0f0f] border border-gray-700 rounded-xl px-4 py-3 text-white text-sm" required />
             </div>
             <div>
               <label className="text-xs text-gray-400 mb-2 block">Identifiant</label>
-              <input type="text" value={identifiant} onChange={(e) => setIdentifiant(e.target.value)} placeholder="admin" className="w-full bg-[#0f0f0f] border border-gray-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-orange-500" required />
+              <input type="text" value={identifiant} onChange={(e) => setIdentifiant(e.target.value)} placeholder="admin" className="w-full bg-[#0f0f0f] border border-gray-700 rounded-xl px-4 py-3 text-white text-sm" required />
             </div>
             <div>
               <label className="text-xs text-gray-400 mb-2 block">Code d'accès</label>
-              <input type="password" value={codeAcces} onChange={(e) => setCodeAcces(e.target.value)} placeholder="••••••" className="w-full bg-[#0f0f0f] border border-gray-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-orange-500" required />
+              <input type="password" value={codeAcces} onChange={(e) => setCodeAcces(e.target.value)} placeholder="••••••" className="w-full bg-[#0f0f0f] border border-gray-700 rounded-xl px-4 py-3 text-white text-sm" required />
             </div>
             {error && <p className="text-xs text-red-400">⚠ {error}</p>}
-            <button type="submit" disabled={loading} className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-xl py-3 text-sm font-semibold transition disabled:opacity-50">
+            <button type="submit" disabled={loading} className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-xl py-3 text-sm font-semibold">
               {loading? 'Connexion...' : 'Se connecter'}
             </button>
           </form>
