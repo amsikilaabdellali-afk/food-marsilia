@@ -1,43 +1,72 @@
-import { useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { useState } from 'react';
+import { supabase } from '@/lib/supabase';
 
-// HADO KHASSHOM YB9AW BACH APP.TSX YKHDEM
-export type Role = 'admin' | 'serveur' | 'cuisinier' | 'caissier'
+export type Role = 'admin' | 'serveur' | 'cuisine' | 'caisse' | 'plateforme';
+
 export const ROLE_NAMES: Record<Role, string> = {
   admin: 'Admin',
   serveur: 'Serveur',
-  cuisinier: 'Cuisine',
-  caissier: 'Caisse'
-}
+  cuisine: 'Cuisine',
+  caisse: 'Caisse',
+  plateforme: 'Plateforme'
+};
 
-export default function Login() {
-  const [codeRestaurant, setCodeRestaurant] = useState('')
-  const [identifiant, setIdentifiant] = useState('')
-  const [codeAcces, setCodeAcces] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+type Profil = {
+  user: any;
+  restaurantNom: string;
+};
+
+export default function Login({ onLogin }: { onLogin: (p: Profil) => void }) {
+  const [codeRestaurant, setCodeRestaurant] = useState('');
+  const [identifiant, setIdentifiant] = useState('');
+  const [codeAcces, setCodeAcces] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
+    e.preventDefault();
+    setError('');
+    setLoading(true);
     try {
-      const cleanCode = codeRestaurant.trim().toLowerCase()
-      const { data: restaurants } = await supabase.from('restaurants').select('*').or(`code.eq.${cleanCode},slug.eq.${cleanCode}`)
-      if (!restaurants || restaurants.length === 0) throw new Error('Code restaurant incorrect')
-      const restaurant = restaurants[0]
-      const { data: users } = await supabase.from('utilisateurs').select('*').eq('restaurant_id', restaurant.id).eq('identifiant', identifiant.trim()).eq('code_acces', codeAcces.trim())
-      if (!users || users.length === 0) throw new Error('Identifiant ou code incorrect')
-      const user = users[0]
-      localStorage.setItem('restaurant', JSON.stringify(restaurant))
-      localStorage.setItem('user', JSON.stringify(user))
-      window.location.href = '/'
+      const cleanCode = codeRestaurant.trim().toLowerCase();
+
+      // 1. L9a restaurant
+      const { data: restaurants, error: restError } = await supabase
+       .from('restaurants')
+       .select('*')
+       .or(`code.eq.${cleanCode},slug.eq.${cleanCode}`);
+
+      if (restError) throw restError;
+      if (!restaurants || restaurants.length === 0) throw new Error('Code restaurant incorrect');
+
+      const restaurant = restaurants[0];
+
+      // 2. L9a utilisateur
+      const { data: users, error: userError } = await supabase
+       .from('utilisateurs')
+       .select('*')
+       .eq('restaurant_id', restaurant.id)
+       .eq('identifiant', identifiant.trim())
+       .eq('code_acces', codeAcces.trim());
+
+      if (userError) throw userError;
+      if (!users || users.length === 0) throw new Error('Identifiant ou code incorrect');
+
+      const user = users[0];
+
+      // 3. Sift profil l App.tsx
+      onLogin({
+        user: user,
+        restaurantNom: restaurant.nom || restaurant.code
+      });
+
     } catch (err: any) {
-      setError(err.message)
+      console.error(err);
+      setError(err.message || 'Erreur de connexion');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] px-4">
@@ -61,13 +90,13 @@ export default function Login() {
               <label className="text-xs text-gray-400 mb-2 block">Code d'accès</label>
               <input type="password" value={codeAcces} onChange={(e) => setCodeAcces(e.target.value)} placeholder="••••••" className="w-full bg-[#0f0f0f] border border-gray-700 rounded-xl px-4 py-3 text-white text-sm" required />
             </div>
-            {error && <p className="text-xs text-red-400">⚠ {error}</p>}
-            <button type="submit" disabled={loading} className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-xl py-3 text-sm font-semibold">
+            {error && <p className="text-xs text-red-400 bg-red-900/20 border border-red-800 rounded-lg p-2">⚠ {error}</p>}
+            <button type="submit" disabled={loading} className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50">
               {loading? 'Connexion...' : 'Se connecter'}
             </button>
           </form>
         </div>
       </div>
     </div>
-  )
+  );
 }
