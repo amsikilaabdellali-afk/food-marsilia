@@ -1,6 +1,15 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 
+// HADO KHASSHOM YB9AW BACH APP.TSX YKHDEM
+export type Role = 'admin' | 'serveur' | 'cuisinier' | 'caissier'
+export const ROLE_NAMES: Record<Role, string> = {
+  admin: 'Admin',
+  serveur: 'Serveur',
+  cuisinier: 'Cuisine',
+  caissier: 'Caisse'
+}
+
 export default function Login() {
   const [codeRestaurant, setCodeRestaurant] = useState('')
   const [identifiant, setIdentifiant] = useState('')
