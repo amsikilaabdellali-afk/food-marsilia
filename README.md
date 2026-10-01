@@ -1,4 +1,4 @@
-# Marsilia Food    
+# Marsilia Food
 
 Application de gestion pour restaurant — React + TypeScript + Vite + Tailwind CSS + Supabase.
 
