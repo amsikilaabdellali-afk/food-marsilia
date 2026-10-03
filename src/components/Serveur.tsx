@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase, type Menu, type MatierePremiere, type Recette, type TableResto, type Commande, type Category } from '@/lib/supabase';
+import { supabase, type Menu, type MatierePremiere, type Recette, type TableResto, type Commande, type CommandeItem, type Category } from '@/lib/supabase';
 import { ArrowLeft, Plus, Minus, Send, Image as ImageIcon } from 'lucide-react';
 
 export default function Serveur({ serveurNom }: { serveurNom: string }) {
@@ -20,12 +20,9 @@ function TablesView({ onSelectTable }: { onSelectTable: (t: TableResto) => void 
       supabase.from('tables').select('*').order('numero'),
       supabase.from('commandes').select('*').in('statut', ['en_attente', 'en_preparation', 'pret']),
     ]);
-    setTables(t || []);
-    setCommandes(c || []);
-    setLoading(false);
+    setTables(t || []); setCommandes(c || []); setLoading(false);
   }, []);
   useEffect(() => { load(); const interval = setInterval(load, 3000); return () => clearInterval(interval); }, [load]);
-
   const getTableStatus = (tableId: string) => {
     const tableCmds = commandes.filter((c) => c.table_id === tableId);
     if (tableCmds.some((c) => c.statut === 'pret')) return 'pret';
@@ -35,17 +32,14 @@ function TablesView({ onSelectTable }: { onSelectTable: (t: TableResto) => void 
   if (loading) return <LoadingSpinner />;
   return (
     <div className="p-4 max-w-4xl mx-auto">
-      <h2 className="text-xl font-bold text-white mb-4">Tables du Restaurant</h2>
+      <h2 className="text-xl font-bold text-white mb-4">Tables</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
         {tables.map((t) => {
           const status = getTableStatus(t.id);
-          const isPret = status === 'pret';
-          const isEnCours = status === 'en_cours';
           return (
-            <button key={t.id} onClick={() => onSelectTable(t)}
-              className={`relative aspect-square rounded-2xl flex flex-col items-center justify-center border-2 transition-all ${isPret? 'bg-green-900/40 border-green-500' : isEnCours? 'bg-blue-950/40 border-blue-600' : 'bg-[#1A1A1A] border-gray-800'}`}>
-              <div className={`text-3xl font-bold ${isPret? 'text-green-400' : isEnCours? 'text-blue-400' : 'text-white'}`}>{t.numero}</div>
-              <div className={`text-xs mt-1 ${isPret? 'text-green-400' : isEnCours? 'text-blue-400' : 'text-gray-500'}`}>{isPret? 'Prêt' : isEnCours? 'En cours' : 'Libre'}</div>
+            <button key={t.id} onClick={() => onSelectTable(t)} className={`aspect-square rounded-2xl flex flex-col items-center justify-center border-2 ${status==='pret'?'bg-green-900/40 border-green-500':status==='en_cours'?'bg-blue-950/40 border-blue-600':'bg-[#1A1A1A] border-gray-800'}`}>
+              <div className="text-3xl font-bold text-white">{t.numero}</div>
+              <div className="text-xs mt-1 text-gray-500">{status}</div>
             </button>
           );
         })}
@@ -59,46 +53,89 @@ function CommandeView({ table, serveurNom, onBack }: { table: TableResto; serveu
   const [matieres, setMatieres] = useState<MatierePremiere[]>([]);
   const [recettes, setRecettes] = useState<Recette[]>([]);
   const [dbCategories, setDbCategories] = useState<Category[]>([]);
+  const [allCommandeItems, setAllCommandeItems] = useState<CommandeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [filter, setFilter] = useState('Tous');
   const [sending, setSending] = useState(false);
 
   const load = useCallback(async () => {
-    const [{ data: m }, { data: mp }, { data: r }, { data: cats }] = await Promise.all([
+    const [{ data: m }, { data: mp }, { data: r }, { data: cats }, { data: activeCmds }] = await Promise.all([
       supabase.from('menu').select('*').eq('disponible', true).order('categorie').order('nom'),
       supabase.from('matiere_premiere').select('*'),
       supabase.from('recette').select('*'),
       supabase.from('categories').select('*').order('ordre'),
+      supabase.from('commandes').select('id').in('statut', ['en_attente', 'en_preparation', 'pret']),
     ]);
-    setMenus(m || []); setMatieres(mp || []); setRecettes(r || []); setDbCategories(cats || []); setLoading(false);
+
+    let items: CommandeItem[] = [];
+    if (activeCmds && activeCmds.length > 0) {
+      const ids = activeCmds.map(c => c.id);
+      const { data: its } = await supabase.from('commande_items').select('*').in('commande_id', ids);
+      items = its || [];
+    }
+
+    setMenus(m || []); setMatieres(mp || []); setRecettes(r || []); setDbCategories(cats || []); setAllCommandeItems(items); setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const getRuptureMatiere = (menuId: string): string | null => {
+  // --- LOGIC JDID DYAL STOCK ---
+  const getStockRestant = (matiereId: string) => {
+    const mp = (matieres as any[]).find((x: any) => x.id === matiereId);
+    if (!mp) return 0;
+    let stock = Number(mp.quantite_stock?? mp.quantite?? 0);
+
+    // 1. Na9es dakchi li deja m-commandé f tables lokhrin
+    for (const item of allCommandeItems) {
+      const recetteDuPlat = (recettes as any[]).find((r: any) => r.menu_id === item.menu_id && r.matiere_id === matiereId);
+      if (recetteDuPlat) {
+        const besoin = Number(recetteDuPlat.qte_necessaire?? (recetteDuPlat as any).quantite?? 0);
+        stock -= besoin * item.qte;
+      }
+    }
+
+    // 2. Na9es dakchi li f panier dyalek daba
+    for (const [menuId, qtePanier] of Object.entries(cart)) {
+      const recetteDuPlat = (recettes as any[]).find((r: any) => r.menu_id === menuId && r.matiere_id === matiereId);
+      if (recetteDuPlat) {
+        const besoin = Number(recetteDuPlat.qte_necessaire?? (recetteDuPlat as any).quantite?? 0);
+        stock -= besoin * qtePanier;
+      }
+    }
+    return stock;
+  };
+
+  const getRuptureInfo = (menuId: string, qteVoulueSupp = 1) => {
     const recetteItems = (recettes as any[]).filter((r: any) => r.menu_id === menuId);
     if (recetteItems.length === 0) return null;
     for (const r of recetteItems) {
-      const mp = (matieres as any[]).find((x: any) => x.id === r.matiere_id);
-      if (!mp) continue;
-      const stock = Number(mp.quantite_stock) || Number(mp.quantite) || 0;
-      const besoin = Number(r.qte_necessaire?? (r as any).quantite?? 0.1);
-      if (stock < besoin) return mp.nom;
+      const stockRestant = getStockRestant(r.matiere_id);
+      const besoinSupp = Number(r.qte_necessaire?? (r as any).quantite?? 0) * qteVoulueSupp;
+      if (stockRestant < besoinSupp) {
+        const mp = (matieres as any[]).find((x: any) => x.id === r.matiere_id);
+        return { nom: mp?.nom || 'matière', restant: stockRestant };
+      }
     }
     return null;
   };
 
   const catList = ['Tous',...dbCategories.map((c) => c.nom)];
   const catLabel = (nom: string) => dbCategories.find((c) => c.nom === nom)?.label || nom;
-  const filtered = menus.filter((m) => {
-    if (filter!== 'Tous' && m.categorie!== filter) return false;
-    return true;
-  });
+  const filtered = menus.filter((m) => { if (filter!== 'Tous' && m.categorie!== filter) return false; return true; });
   const grouped = filtered.reduce<Record<string, Menu[]>>((acc, m) => { (acc[m.categorie] = acc[m.categorie] || []).push(m); return acc; }, {});
   const cartItems = Object.entries(cart).filter(([, qte]) => qte > 0);
   const cartTotal = cartItems.reduce((sum, [menuId, qte]) => { const m = menus.find((x) => x.id === menuId); return sum + (m? Number(m.prix) * qte : 0); }, 0);
-  const addToCart = (menuId: string) => setCart((c) => ({...c, [menuId]: (c[menuId] || 0) + 1 }));
+
+  const addToCart = (menuId: string) => {
+    const rupture = getRuptureInfo(menuId, 1);
+    if (rupture) {
+      alert(`Stock na9es! ${rupture.nom} ba9i fih ghir ${rupture.restant.toFixed(2)}`);
+      return;
+    }
+    setCart((c) => ({...c, [menuId]: (c[menuId] || 0) + 1 }));
+  };
   const removeFromCart = (menuId: string) => setCart((c) => { const next = {...c }; if (next[menuId] > 1) next[menuId]--; else delete next[menuId]; return next; });
+
   const handleSend = async () => {
     if (cartItems.length === 0) return;
     setSending(true);
@@ -114,9 +151,9 @@ function CommandeView({ table, serveurNom, onBack }: { table: TableResto; serveu
         await supabase.from('tables').update({ statut: 'en_cours' } as any).eq('id', table.id);
       }
     } catch (e) { console.error(e); }
-    setSending(false);
-    onBack();
+    setSending(false); onBack();
   };
+
   if (loading) return <LoadingSpinner />;
   return (
     <div className="min-h-screen bg-[#0A0A0A] pb-32">
@@ -135,9 +172,11 @@ function CommandeView({ table, serveurNom, onBack }: { table: TableResto; serveu
             <h3 className="text-lg font-bold text-[#FF6B00] mb-3">{catLabel(cat)}</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {items.map((m) => {
-                const ruptureMatiere = getRuptureMatiere(m.id); const isRupture =!!ruptureMatiere; const inCart = cart[m.id] || 0;
+                const rupture = getRuptureInfo(m.id, 0); // check bla ma nzido
+                const isRupture =!!rupture;
+                const inCart = cart[m.id] || 0;
                 return (
-                  <div key={m.id} className={`bg-[#1A1A1A] rounded-2xl overflow-hidden border ${isRupture? 'border-red-700 opacity-60' : inCart > 0? 'border-[#FF6B00]' : 'border-gray-800'}`}>
+                  <div key={m.id} className={`bg-[#1A1A1A] rounded-2xl overflow-hidden border ${isRupture? 'border-red-700 opacity-50' : inCart > 0? 'border-[#FF6B00]' : 'border-gray-800'}`}>
                     <div className="relative h-24 bg-gray-900">
                       {m.image_url? <img src={m.image_url} alt={m.nom} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon className="w-8 h-8 text-gray-700" /></div>}
                       {inCart > 0 && <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-[#FF6B00] text-white text-xs font-bold flex items-center justify-center">{inCart}</div>}
@@ -146,7 +185,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: TableResto; serveu
                       <h4 className="text-white text-sm font-semibold leading-tight">{m.nom}</h4>
                       <div className="flex items-center justify-between mt-1.5">
                         <span className="text-[#FF6B00] font-bold text-sm">{Number(m.prix).toFixed(0)} DH</span>
-                        {isRupture? <span className="text-red-400 text-[10px]">Rupture {ruptureMatiere}</span> : inCart > 0? (
+                        {isRupture? <span className="text-red-400 text-[10px] font-bold">RUPTURE {rupture?.nom}</span> : inCart > 0? (
                           <div className="flex items-center gap-1">
                             <button onClick={() => removeFromCart(m.id)} className="w-6 h-6 rounded-lg bg-gray-800 text-white flex items-center justify-center"><Minus className="w-3 h-3" /></button>
                             <span className="text-white text-sm font-bold w-5 text-center">{inCart}</span>
