@@ -81,7 +81,6 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
       }
       const need = Number(r.qte_necessaire?? 0) * addQte;
       const rest = stock - inCart;
-
       if (addQte === 0) {
         if (rest < 0.001) {
           const mp: any = matieres.find((x: any) => x.id === r.matiere_id);
@@ -114,42 +113,13 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
   const send = async () => {
     if (cartItems.length === 0) return;
     setSending(true);
-    const { data: cmd } = await supabase.from('commandes').insert({ table_id: table.id, serveur_nom: serveurNom, statut: 'en_attente', total: cartTotal }).select().single();
-    if (cmd) {
-      const items = cartItems.map(([menu_id, qte]) => { const mm = menus.find((x) => x.id === menu_id)!; return { commande_id: cmd.id, menu_id, menu_nom: mm.nom, prix: mm.prix, qte }; });
-      await supabase.from('commande_items').insert(items as any);
-      await supabase.from('tables').update({ statut: 'en_cours' }).eq('id', table.id);
-    }
-    setSending(false); onBack();
-  };
-
-  if (loading) return <div className="flex justify-center py-12"><div className="w-8 h-8 border-2 border-[#FF6B00] border-t-transparent rounded-full animate-spin" /></div>;
-  return (
-    <div className="min-h-screen bg-[#0A0A0A] pb-32">
-      <div className="sticky top-0 z-30 bg-[#0A0A0A]/95 border-b border-gray-800 px-4 py-3"><div className="flex items-center gap-3 max-w-4xl mx-auto"><button onClick={onBack} className="p-2 rounded-lg bg-[#1A1A1A] text-gray-300"><ArrowLeft className="w-5 h-5" /></button><div><h2 className="text-white font-bold">Table {table.numero}</h2><p className="text-gray-500 text-xs">{serveurNom}</p></div></div></div>
-      <div className="p-4 max-w-4xl mx-auto">
-        <div className="flex gap-2 overflow-x-auto pb-2 mb-4">{catList.map((c) => <button key={c} onClick={() => setFilter(c)} className={`px-4 py-2 rounded-lg text-sm whitespace-nowrap ${filter === c? 'bg-[#FF6B00] text-white' : 'bg-[#1A1A1A] text-gray-400'}`}>{c === 'Tous'? 'Tous' : catLabel(c)}</button>)}</div>
-        {Object.entries(grouped).map(([cat, items]) => (
-          <div key={cat} className="mb-6"><h3 className="text-lg font-bold text-[#FF6B00] mb-3">{catLabel(cat)}</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {items.map((m) => {
-                const rupt = checkRupture(m.id, 0);
-                const isRupt =!!rupt;
-                const inCart = cart[m.id] || 0;
-                return (
-                  <div key={m.id} className={`bg-[#1A1A1A] rounded-2xl overflow-hidden border ${isRupt? 'border-red-700 opacity-60' : inCart? 'border-[#FF6B00]' : 'border-gray-800'}`}>
-                    <div className="relative h-24 bg-gray-900">{m.image_url? <img src={m.image_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon className="w-8 h-8 text-gray-700" /></div>}{inCart > 0 && <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-[#FF6B00] text-white text-xs font-bold flex items-center justify-center">{inCart}</div>}</div>
-                    <div className="p-2.5"><h4 className="text-white text-sm font-semibold">{m.nom}</h4><div className="flex items-center justify-between mt-1.5"><span className="text-[#FF6B00] font-bold text-sm">{Number(m.prix).toFixed(0)} DH</span>
-                      {isRupt? <span className="text-red-400 text-[9px] font-bold">RUPTURE {rupt?.restant.toFixed(1)}</span> : inCart? <div className="flex items-center gap-1"><button onClick={() => remove(m.id)} className="w-6 h-6 rounded-lg bg-gray-800 text-white flex items-center justify-center"><Minus className="w-3 h-3" /></button><span className="text-white text-sm w-5 text-center">{inCart}</span><button onClick={() => add(m.id)} className="w-6 h-6 rounded-lg bg-[#FF6B00] text-white flex items-center justify-center"><Plus className="w-3 h-3" /></button></div> : <button onClick={() => add(m.id)} className="w-7 h-7 rounded-lg bg-[#FF6B00] text-white flex items-center justify-center"><Plus className="w-4 h-4" /></button>}
-                    </div></div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-      {cartItems.length > 0 && <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#1A1A1A] border-t border-gray-800 p-4"><div className="max-w-4xl mx-auto flex items-center justify-between"><div><div className="text-gray-400 text-sm">{cartItems.length} articles</div><div className="text-white text-2xl font-bold">{cartTotal.toFixed(0)} DH</div></div><button onClick={send} disabled={sending} className="flex items-center gap-2 bg-[#FF6B00] text-white px-6 py-3.5 rounded-xl"><Send className="w-5 h-5" />{sending? 'Envoi...' : 'Envoyer'}</button></div></div>}
-    </div>
-  );
-    }
+    try {
+      // 1. Verification akhir
+      for (const [menuId, qte] of cartItems) {
+        const rupt = checkRupture(menuId, qte);
+        if (rupt) { alert(`Stock na9es! ${rupt.nom} ba9i ${rupt.restant.toFixed(2)}`); setSending(false); return; }
+      }
+      // 2. Dawaz commande
+      const { data: cmd } = await supabase.from('commandes').insert({ table_id: table.id, serveur_nom: serveurNom, statut: 'en_attente', total: cartTotal }).select().single();
+      if (cmd) {
+        const items = cartItems.map(([menu_id, qte]) => { const
