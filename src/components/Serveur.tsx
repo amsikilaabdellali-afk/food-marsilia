@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase, type Menu, type MatierePremiere, type Recette, type TableResto, type Commande, type Category } from '@/lib/supabase';
-import { ArrowLeft, ShoppingCart, Plus, Minus, Send, Search, UtensilsCrossed, Clock, CheckCircle2, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, Plus, Minus, Send, Search, UtensilsCrossed, Clock, CheckCircle2, Image as ImageIcon, Trash2 } from 'lucide-react';
 
 export default function Serveur({ serveurNom }: { serveurNom: string }) {
   const [view, setView] = useState<'tables' | 'commande'>('tables');
@@ -25,6 +25,15 @@ function TablesView({ onSelectTable }: { onSelectTable: (t: TableResto) => void 
     setLoading(false);
   }, []);
   useEffect(() => { load(); const interval = setInterval(load, 3000); return () => clearInterval(interval); }, [load]);
+
+  const handleVider = async () => {
+    if(!confirm("T-mse7 ga3 les commandes 9odam client?")) return;
+    await supabase.from('commande_items').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await supabase.from('commandes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await supabase.from('tables').update({ statut: 'libre' } as any).neq('id', '00000000-0000-0000-0000-000000000000');
+    load();
+  };
+
   const getTableStatus = (tableId: string) => {
     const tableCmds = commandes.filter((c) => c.table_id === tableId);
     if (tableCmds.some((c) => c.statut === 'pret')) return 'pret';
@@ -34,7 +43,10 @@ function TablesView({ onSelectTable }: { onSelectTable: (t: TableResto) => void 
   if (loading) return <LoadingSpinner />;
   return (
     <div className="p-4 max-w-4xl mx-auto">
-      <h2 className="text-xl font-bold text-white mb-4">Tables du Restaurant</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-bold text-white">Tables</h2>
+        <button onClick={handleVider} className="flex items-center gap-2 bg-red-600 text-white px-3 py-2 rounded-lg text-xs font-bold"><Trash2 className="w-4 h-4"/> Vider</button>
+      </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
         {tables.map((t) => {
           const status = getTableStatus(t.id);
@@ -42,11 +54,9 @@ function TablesView({ onSelectTable }: { onSelectTable: (t: TableResto) => void 
           const isEnCours = status === 'en_cours';
           return (
             <button key={t.id} onClick={() => onSelectTable(t)}
-              className={`relative aspect-square rounded-2xl flex flex-col items-center justify-center border-2 transition-all active:scale-95 ${isPret? 'bg-green-900/40 border-green-500' : isEnCours? 'bg-blue-950/40 border-blue-600' : 'bg-[#1A1A1A] border-gray-800 hover:border-gray-600'}`}>
+              className={`relative aspect-square rounded-2xl flex flex-col items-center justify-center border-2 ${isPret? 'bg-green-900/40 border-green-500' : isEnCours? 'bg-blue-950/40 border-blue-600' : 'bg-[#1A1A1A] border-gray-800'}`}>
               <div className={`text-3xl font-bold ${isPret? 'text-green-400' : isEnCours? 'text-blue-400' : 'text-white'}`}>{t.numero}</div>
-              <div className={`text-xs mt-1 font-medium ${isPret? 'text-green-400' : isEnCours? 'text-blue-400' : 'text-gray-500'}`}>{isPret? 'Prêt à servir' : isEnCours? 'En cours' : 'Libre'}</div>
-              {isPret && <div className="absolute top-2 right-2"><CheckCircle2 className="w-5 h-5 text-green-400" /></div>}
-              {isEnCours &&!isPret && <div className="absolute top-2 right-2"><Clock className="w-4 h-4 text-blue-400" /></div>}
+              <div className={`text-xs mt-1 ${isPret? 'text-green-400' : isEnCours? 'text-blue-400' : 'text-gray-500'}`}>{isPret? 'Prêt' : isEnCours? 'En cours' : 'Libre'}</div>
             </button>
           );
         })}
@@ -65,35 +75,30 @@ function CommandeView({ table, serveurNom, onBack }: { table: TableResto; serveu
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('Tous');
   const [sending, setSending] = useState(false);
-  const [existingCmds, setExistingCmds] = useState<Commande[]>([]);
 
   const load = useCallback(async () => {
-    const [{ data: m }, { data: mp }, { data: r }, { data: ec }, { data: cats }] = await Promise.all([
+    const [{ data: m }, { data: mp }, { data: r }, { data: cats }] = await Promise.all([
       supabase.from('menu').select('*').eq('disponible', true).order('categorie').order('nom'),
       supabase.from('matiere_premiere').select('*'),
       supabase.from('recette').select('*'),
-      supabase.from('commandes').select('*').eq('table_id', table.id).in('statut', ['en_attente', 'en_preparation', 'pret']),
       supabase.from('categories').select('*').order('ordre'),
     ]);
-    setMenus(m || []); setMatieres(mp || []); setRecettes(r || []); setExistingCmds(ec || []); setDbCategories(cats || []); setLoading(false);
+    setMenus(m || []); setMatieres(mp || []); setRecettes(r || []); setDbCategories(cats || []); setLoading(false);
   }, [table.id]);
   useEffect(() => { load(); }, [load]);
-  
+
   const getRuptureMatiere = (menuId: string): string | null => {
     const recetteItems = (recettes as any[]).filter((r: any) => r.menu_id === menuId);
     if (recetteItems.length === 0) return null;
     for (const r of recetteItems) {
       const mp = (matieres as any[]).find((x: any) => x.id === r.matiere_id);
       if (!mp) continue;
-      // Hna l-fix: ila quantite_stock = 0 kan-choufou quantite
       const stock = Number(mp.quantite_stock) || Number(mp.quantite) || 0;
-      const besoin = Number(r.qte_necessaire ?? r.quantite ?? 0.1);
+      const besoin = Number(r.qte_necessaire?? r.quantite?? 0.1);
       if (stock < besoin) return mp.nom;
     }
     return null;
   };
-
-
 
   const catList = ['Tous',...dbCategories.map((c) => c.nom)];
   const catLabel = (nom: string) => dbCategories.find((c) => c.nom === nom)?.label || nom;
@@ -107,47 +112,36 @@ function CommandeView({ table, serveurNom, onBack }: { table: TableResto; serveu
   const cartTotal = cartItems.reduce((sum, [menuId, qte]) => { const m = menus.find((x) => x.id === menuId); return sum + (m? Number(m.prix) * qte : 0); }, 0);
   const addToCart = (menuId: string) => { setCart((c) => ({...c, [menuId]: (c[menuId] || 0) + 1 })); };
   const removeFromCart = (menuId: string) => { setCart((c) => { const next = {...c }; if (next[menuId] > 1) next[menuId]--; else delete next[menuId]; return next; }); };
-
   const handleSend = async () => {
     if (cartItems.length === 0) return;
     setSending(true);
     try {
       const total = cartTotal;
-      const { data: cmd, error: cmdError } = await supabase.from('commandes').insert({ table_id: table.id, serveur_nom: serveurNom, statut: 'en_attente', total }).select().single();
-      if (cmdError) { alert('Erreur commande: ' + cmdError.message); console.error(cmdError); setSending(false); return; }
+      const { data: cmd } = await supabase.from('commandes').insert({ table_id: table.id, serveur_nom: serveurNom, statut: 'en_attente', total }).select().single();
       if (cmd) {
         const items = cartItems.map(([menuId, qte]) => {
           const m = menus.find((x) => x.id === menuId)!;
           return { commande_id: cmd.id, menu_id: menuId, menu_nom: m.nom, prix: m.prix, qte };
         });
-        const { error: itemsError } = await supabase.from('commande_items').insert(items);
-        if (itemsError) { alert('Erreur items: ' + itemsError.message); console.error(itemsError); }
-        await supabase.from('tables').update({ statut: 'en_cours' }).eq('id', table.id);
-        printKitchenTicket(cmd.id, table.numero, serveurNom, items);
+        await supabase.from('commande_items').insert(items);
+        await supabase.from('tables').update({ statut: 'en_cours' } as any).eq('id', table.id);
       }
-    } catch (e: any) { console.error(e); alert('Erreur: ' + e.message); }
+    } catch (e: any) { console.error(e); }
     setSending(false);
     onBack();
   };
-
   if (loading) return <LoadingSpinner />;
   return (
     <div className="min-h-screen bg-[#0A0A0A] pb-32">
       <div className="sticky top-0 z-30 bg-[#0A0A0A]/95 backdrop-blur border-b border-gray-800 px-4 py-3">
         <div className="flex items-center gap-3 max-w-4xl mx-auto">
-          <button onClick={onBack} className="p-2 rounded-lg bg-[#1A1A1A] text-gray-300 hover:bg-gray-800"><ArrowLeft className="w-5 h-5" /></button>
+          <button onClick={onBack} className="p-2 rounded-lg bg-[#1A1A1A] text-gray-300"><ArrowLeft className="w-5 h-5" /></button>
           <div><h2 className="text-white font-bold">Table {table.numero}</h2><p className="text-gray-500 text-xs">{serveurNom}</p></div>
         </div>
       </div>
       <div className="p-4 max-w-4xl mx-auto">
-        <div className="flex flex-col sm:flex-row gap-3 mb-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher..." className="w-full bg-[#1A1A1A] text-white rounded-xl py-2.5 pl-10 pr-4 border border-gray-800 focus:border-[#FF6B00] focus:outline-none" />
-          </div>
-        </div>
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 mb-4">
-          {catList.map((c) => (<button key={c} onClick={() => setFilter(c)} className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${filter === c? 'bg-[#FF6B00] text-white' : 'bg-[#1A1A1A] text-gray-400 hover:text-white'}`}>{c === 'Tous'? 'Tous' : catLabel(c)}</button>))}
+        <div className="flex gap-2 overflow-x-auto pb-1 mb-4">
+          {catList.map((c) => (<button key={c} onClick={() => setFilter(c)} className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${filter === c? 'bg-[#FF6B00] text-white' : 'bg-[#1A1A1A] text-gray-400'}`}>{c === 'Tous'? 'Tous' : catLabel(c)}</button>))}
         </div>
         {Object.entries(grouped).map(([cat, items]) => (
           <div key={cat} className="mb-6">
@@ -165,7 +159,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: TableResto; serveu
                       <h4 className="text-white text-sm font-semibold leading-tight">{m.nom}</h4>
                       <div className="flex items-center justify-between mt-1.5">
                         <span className="text-[#FF6B00] font-bold text-sm">{Number(m.prix).toFixed(0)} DH</span>
-                        {isRupture? <span className="text-red-400 text-xs font-medium">Rupture {ruptureMatiere}</span> : inCart > 0? (
+                        {isRupture? <span className="text-red-400 text-xs">Rupture {ruptureMatiere}</span> : inCart > 0? (
                           <div className="flex items-center gap-1">
                             <button onClick={() => removeFromCart(m.id)} className="w-6 h-6 rounded-lg bg-gray-800 text-white flex items-center justify-center"><Minus className="w-3 h-3" /></button>
                             <span className="text-white text-sm font-bold w-5 text-center">{inCart}</span>
@@ -185,18 +179,11 @@ function CommandeView({ table, serveurNom, onBack }: { table: TableResto; serveu
         <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#1A1A1A] border-t border-gray-800 p-4">
           <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
             <div><div className="text-gray-400 text-sm">{cartItems.length} article(s)</div><div className="text-white text-2xl font-bold">{cartTotal.toFixed(0)} DH</div></div>
-            <button onClick={handleSend} disabled={sending} className="flex items-center gap-2 bg-[#FF6B00] hover:bg-[#FF7A1A] text-white font-semibold px-6 py-3.5 rounded-xl transition-colors disabled:opacity-50"><Send className="w-5 h-5" />{sending? 'Envoi...' : 'Envoyer Cuisine'}</button>
+            <button onClick={handleSend} disabled={sending} className="flex items-center gap-2 bg-[#FF6B00] text-white font-semibold px-6 py-3.5 rounded-xl disabled:opacity-50"><Send className="w-5 h-5" />{sending? 'Envoi...' : 'Envoyer'}</button>
           </div>
         </div>
       )}
     </div>
   );
-}
-
-function printKitchenTicket(commandeId: string, tableNum: number, serveurNom: string, items: { menu_nom: string; qte: number }[]) {
-  const now = new Date(); const dateStr = now.toLocaleDateString('fr-FR'); const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  const w = window.open('', '_blank', 'width=400,height=600'); if (!w) return;
-  w.document.write(`<html><head><title>Ticket Cuisine - Table ${tableNum}</title><style>*{font-family:'Courier New',monospace;}body{width:300px;margin:0 auto;padding:10px;}h1{text-align:center;font-size:18px;margin:5px 0;}.info{text-align:center;font-size:12px;margin:3px 0;}hr{border:1px dashed #000;margin:8px 0;}.item{font-size:14px;display:flex;justify-content:space-between;margin:4px 0;}.qte{font-weight:bold;}</style></head><body><h1>MARSILIA FOOD</h1><div class="info">--- TICKET CUISINE ---</div><div class="info">Table: ${tableNum}</div><div class="info">Serveur: ${serveurNom}</div><div class="info">Date: ${dateStr} - ${timeStr}</div><hr>${items.map((it) => `<div class="item"><span class="qte">${it.qte}x</span><span>${it.menu_nom}</span></div>`).join('')}<hr><div class="info">*** PAS DE PRIX ***</div></body></html>`);
-  w.document.close(); w.print(); setTimeout(() => w.close(), 500);
 }
 function LoadingSpinner() { return <div className="flex items-center justify-center py-12"><div className="w-8 h-8 border-2 border-[#FF6B00] border-t-transparent rounded-full animate-spin" /></div>; }
