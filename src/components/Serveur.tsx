@@ -78,15 +78,22 @@ function CommandeView({ table, serveurNom, onBack }: { table: TableResto; serveu
     setMenus(m || []); setMatieres(mp || []); setRecettes(r || []); setExistingCmds(ec || []); setDbCategories(cats || []); setLoading(false);
   }, [table.id]);
   useEffect(() => { load(); }, [load]);
-
+  
   const getRuptureMatiere = (menuId: string): string | null => {
-    const recetteItems = recettes.filter((r) => r.menu_id === menuId);
+    const recetteItems = (recettes as any[]).filter((r: any) => r.menu_id === menuId);
+    if (recetteItems.length === 0) return null;
     for (const r of recetteItems) {
-      const mp = matieres.find((x) => x.id === r.matiere_id) as any;
-      if (mp && Number(mp.quantite_stock?? mp.quantite?? 0) <= 0) return mp.nom;
+      const mp = (matieres as any[]).find((x: any) => x.id === r.matiere_id);
+      if (!mp) continue;
+      // Hna l-fix: ila quantite_stock = 0 kan-choufou quantite
+      const stock = Number(mp.quantite_stock) || Number(mp.quantite) || 0;
+      const besoin = Number(r.qte_necessaire ?? r.quantite ?? 0.1);
+      if (stock < besoin) return mp.nom;
     }
     return null;
   };
+
+
 
   const catList = ['Tous',...dbCategories.map((c) => c.nom)];
   const catLabel = (nom: string) => dbCategories.find((c) => c.nom === nom)?.label || nom;
