@@ -67,53 +67,49 @@ function CommandeView({ table, serveurNom, onBack }: { table: TableResto; serveu
       supabase.from('categories').select('*').order('ordre'),
       supabase.from('commandes').select('id').in('statut', ['en_attente', 'en_preparation', 'pret']),
     ]);
-
     let items: CommandeItem[] = [];
     if (activeCmds && activeCmds.length > 0) {
       const ids = activeCmds.map(c => c.id);
       const { data: its } = await supabase.from('commande_items').select('*').in('commande_id', ids);
       items = its || [];
     }
-
     setMenus(m || []); setMatieres(mp || []); setRecettes(r || []); setDbCategories(cats || []); setAllCommandeItems(items); setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  // --- LOGIC JDID DYAL STOCK ---
-  const getStockRestant = (matiereId: string) => {
-    const mp = (matieres as any[]).find((x: any) => x.id === matiereId);
+  const getStockReel = (matiereId: string) => {
+    const mp: any = (matieres as any[]).find((x: any) => x.id === matiereId);
     if (!mp) return 0;
-    let stock = Number(mp.quantite_stock?? mp.quantite?? 0);
-
-    // 1. Na9es dakchi li deja m-commandé f tables lokhrin
-    for (const item of allCommandeItems) {
-      const recetteDuPlat = (recettes as any[]).find((r: any) => r.menu_id === item.menu_id && r.matiere_id === matiereId);
-      if (recetteDuPlat) {
-        const besoin = Number(recetteDuPlat.qte_necessaire?? (recetteDuPlat as any).quantite?? 0);
-        stock -= besoin * item.qte;
-      }
-    }
-
-    // 2. Na9es dakchi li f panier dyalek daba
-    for (const [menuId, qtePanier] of Object.entries(cart)) {
-      const recetteDuPlat = (recettes as any[]).find((r: any) => r.menu_id === menuId && r.matiere_id === matiereId);
-      if (recetteDuPlat) {
-        const besoin = Number(recetteDuPlat.qte_necessaire?? (recetteDuPlat as any).quantite?? 0);
-        stock -= besoin * qtePanier;
-      }
-    }
-    return stock;
+    return Number(mp.quantite?? mp.quantite_stock?? mp.stock?? 0);
   };
 
   const getRuptureInfo = (menuId: string, qteVoulueSupp = 1) => {
-    const recetteItems = (recettes as any[]).filter((r: any) => r.menu_id === menuId);
+    const recetteItems: any[] = (recettes as any[]).filter((r: any) => r.menu_id === menuId);
     if (recetteItems.length === 0) return null;
     for (const r of recetteItems) {
-      const stockRestant = getStockRestant(r.matiere_id);
-      const besoinSupp = Number(r.qte_necessaire?? (r as any).quantite?? 0) * qteVoulueSupp;
-      if (stockRestant < besoinSupp) {
-        const mp = (matieres as any[]).find((x: any) => x.id === r.matiere_id);
-        return { nom: mp?.nom || 'matière', restant: stockRestant };
+      const stockReel = getStockReel(r.matiere_id);
+      let dejaConsomme = 0;
+      for (const item of allCommandeItems) {
+        const rec: any = (recettes as any[]).find((x: any) => x.menu_id === item.menu_id && x.matiere_id === r.matiere_id);
+        if (rec) dejaConsomme += Number(rec.qte_necessaire?? rec.quantite?? 0) * item.qte;
+      }
+      let panierConsomme = 0;
+      for (const [mId, qte] of Object.entries(cart)) {
+        const rec: any = (recettes as any[]).find((x: any) => x.menu_id === mId && x.matiere_id === r.matiere_id);
+        if (rec) panierConsomme += Number(rec.qte_necessaire?? rec.quantite?? 0) * qte;
+      }
+      const stockRestant = stockReel - dejaConsomme - panierConsomme;
+      const besoinJdid = Number(r.qte_necessaire?? r.quantite?? 0) * qteVoulueSupp;
+      if (qteVoulueSupp === 0) {
+        if (stockRestant < 0.001) {
+          const mp: any = (matieres as any[]).find((x: any) => x.id === r.matiere_id);
+          return { nom: mp?.nom, restant: stockRestant };
+        }
+      } else {
+        if (stockRestant < besoinJdid - 0.001) {
+          const mp: any = (matieres as any[]).find((x: any) => x.id === r.matiere_id);
+          return { nom: mp?.nom, restant: stockRestant };
+        }
       }
     }
     return null;
@@ -129,7 +125,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: TableResto; serveu
   const addToCart = (menuId: string) => {
     const rupture = getRuptureInfo(menuId, 1);
     if (rupture) {
-      alert(`Stock na9es! ${rupture.nom} ba9i fih ghir ${rupture.restant.toFixed(2)}`);
+      alert(`Stock na9es! ${rupture.nom} ba9i fih ghir ${rupture.restant.toFixed(2)} - ma t9darch tzid`);
       return;
     }
     setCart((c) => ({...c, [menuId]: (c[menuId] || 0) + 1 }));
@@ -172,11 +168,11 @@ function CommandeView({ table, serveurNom, onBack }: { table: TableResto; serveu
             <h3 className="text-lg font-bold text-[#FF6B00] mb-3">{catLabel(cat)}</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {items.map((m) => {
-                const rupture = getRuptureInfo(m.id, 0); // check bla ma nzido
+                const rupture = getRuptureInfo(m.id, 0);
                 const isRupture =!!rupture;
                 const inCart = cart[m.id] || 0;
                 return (
-                  <div key={m.id} className={`bg-[#1A1A1A] rounded-2xl overflow-hidden border ${isRupture? 'border-red-700 opacity-50' : inCart > 0? 'border-[#FF6B00]' : 'border-gray-800'}`}>
+                  <div key={m.id} className={`bg-[#1A1A1A] rounded-2xl overflow-hidden border ${isRupture? 'border-red-700 opacity-60' : inCart > 0? 'border-[#FF6B00]' : 'border-gray-800'}`}>
                     <div className="relative h-24 bg-gray-900">
                       {m.image_url? <img src={m.image_url} alt={m.nom} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon className="w-8 h-8 text-gray-700" /></div>}
                       {inCart > 0 && <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-[#FF6B00] text-white text-xs font-bold flex items-center justify-center">{inCart}</div>}
@@ -185,7 +181,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: TableResto; serveu
                       <h4 className="text-white text-sm font-semibold leading-tight">{m.nom}</h4>
                       <div className="flex items-center justify-between mt-1.5">
                         <span className="text-[#FF6B00] font-bold text-sm">{Number(m.prix).toFixed(0)} DH</span>
-                        {isRupture? <span className="text-red-400 text-[10px] font-bold">RUPTURE {rupture?.nom}</span> : inCart > 0? (
+                        {isRupture? <span className="text-red-400 text-[9px] font-bold">RUPTURE {rupture?.nom}</span> : inCart > 0? (
                           <div className="flex items-center gap-1">
                             <button onClick={() => removeFromCart(m.id)} className="w-6 h-6 rounded-lg bg-gray-800 text-white flex items-center justify-center"><Minus className="w-3 h-3" /></button>
                             <span className="text-white text-sm font-bold w-5 text-center">{inCart}</span>
