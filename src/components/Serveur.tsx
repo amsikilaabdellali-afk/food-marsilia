@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase, type Menu, type MatierePremiere, type Recette, type TableResto, type Commande, type CommandeItem, type Category } from '@/lib/supabase';
+import { supabase, type Menu, type MatierePremiere, type Recette, type TableResto, type Commande, type Category } from '@/lib/supabase';
 import { ArrowLeft, Plus, Minus, Send, Image as ImageIcon } from 'lucide-react';
 
 export default function Serveur({ serveurNom }: { serveurNom: string }) {
@@ -22,7 +22,7 @@ function TablesView({ onSelectTable }: { onSelectTable: (t: TableResto) => void 
     ]);
     setTables(t || []); setCommandes(c || []); setLoading(false);
   }, []);
-  useEffect(() => { load(); const interval = setInterval(load, 3000); return () => clearInterval(interval); }, [load]);
+  useEffect(() => { load(); const i = setInterval(load, 3000); return () => clearInterval(i); }, [load]);
   const getTableStatus = (tableId: string) => {
     const tableCmds = commandes.filter((c) => c.table_id === tableId);
     if (tableCmds.some((c) => c.statut === 'pret')) return 'pret';
@@ -53,63 +53,53 @@ function CommandeView({ table, serveurNom, onBack }: { table: TableResto; serveu
   const [matieres, setMatieres] = useState<MatierePremiere[]>([]);
   const [recettes, setRecettes] = useState<Recette[]>([]);
   const [dbCategories, setDbCategories] = useState<Category[]>([]);
-  const [allCommandeItems, setAllCommandeItems] = useState<CommandeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [filter, setFilter] = useState('Tous');
   const [sending, setSending] = useState(false);
 
   const load = useCallback(async () => {
-    const [{ data: m }, { data: mp }, { data: r }, { data: cats }, { data: activeCmds }] = await Promise.all([
+    const [{ data: m }, { data: mp }, { data: r }, { data: cats }] = await Promise.all([
       supabase.from('menu').select('*').eq('disponible', true).order('categorie').order('nom'),
       supabase.from('matiere_premiere').select('*'),
       supabase.from('recette').select('*'),
       supabase.from('categories').select('*').order('ordre'),
-      supabase.from('commandes').select('id').in('statut', ['en_attente', 'en_preparation', 'pret']),
     ]);
-    let items: CommandeItem[] = [];
-    if (activeCmds && activeCmds.length > 0) {
-      const ids = activeCmds.map(c => c.id);
-      const { data: its } = await supabase.from('commande_items').select('*').in('commande_id', ids);
-      items = its || [];
-    }
-    setMenus(m || []); setMatieres(mp || []); setRecettes(r || []); setDbCategories(cats || []); setAllCommandeItems(items); setLoading(false);
+    setMenus(m || []); setMatieres(mp || []); setRecettes(r || []); setDbCategories(cats || []); setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  // STOCK S7I7 - ghir quantite
   const getStockReel = (matiereId: string) => {
     const mp: any = (matieres as any[]).find((x: any) => x.id === matiereId);
     if (!mp) return 0;
-    return Number(mp.quantite?? mp.quantite_stock?? mp.stock?? 0);
+    return Number(mp.quantite?? 0);
   };
 
+  // Check wach plat kayn stock
   const getRuptureInfo = (menuId: string, qteVoulueSupp = 1) => {
     const recetteItems: any[] = (recettes as any[]).filter((r: any) => r.menu_id === menuId);
-    if (recetteItems.length === 0) return null;
+    if (recetteItems.length === 0) return null; // ila ma 3andouch recette khllih
+
     for (const r of recetteItems) {
+      const mp: any = (matieres as any[]).find((x: any) => x.id === r.matiere_id);
       const stockReel = getStockReel(r.matiere_id);
-      let dejaConsomme = 0;
-      for (const item of allCommandeItems) {
-        const rec: any = (recettes as any[]).find((x: any) => x.menu_id === item.menu_id && x.matiere_id === r.matiere_id);
-        if (rec) dejaConsomme += Number(rec.qte_necessaire?? rec.quantite?? 0) * item.qte;
-      }
-      let panierConsomme = 0;
+
+      // Ch7al deja f panier dyalek men had matiere
+      let fPanier = 0;
       for (const [mId, qte] of Object.entries(cart)) {
         const rec: any = (recettes as any[]).find((x: any) => x.menu_id === mId && x.matiere_id === r.matiere_id);
-        if (rec) panierConsomme += Number(rec.qte_necessaire?? rec.quantite?? 0) * qte;
+        if (rec) fPanier += Number(rec.qte_necessaire?? 0) * qte;
       }
-      const stockRestant = stockReel - dejaConsomme - panierConsomme;
-      const besoinJdid = Number(r.qte_necessaire?? r.quantite?? 0) * qteVoulueSupp;
+
+      const besoin = Number(r.qte_necessaire?? 0) * qteVoulueSupp;
+
       if (qteVoulueSupp === 0) {
-        if (stockRestant < 0.001) {
-          const mp: any = (matieres as any[]).find((x: any) => x.id === r.matiere_id);
-          return { nom: mp?.nom, restant: stockRestant };
-        }
+        // Affichage: ila stock - panier < 0 => rupture
+        if (stockReel - fPanier < 0.001) return { nom: mp?.nom, restant: stockReel - fPanier };
       } else {
-        if (stockRestant < besoinJdid - 0.001) {
-          const mp: any = (matieres as any[]).find((x: any) => x.id === r.matiere_id);
-          return { nom: mp?.nom, restant: stockRestant };
-        }
+        // Ziyada: ila stock - panier < besoin => ma tzidch
+        if (stockReel - fPanier < besoin - 0.001) return { nom: mp?.nom, restant: stockReel - fPanier };
       }
     }
     return null;
@@ -125,7 +115,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: TableResto; serveu
   const addToCart = (menuId: string) => {
     const rupture = getRuptureInfo(menuId, 1);
     if (rupture) {
-      alert(`Stock na9es! ${rupture.nom} ba9i fih ghir ${rupture.restant.toFixed(2)} - ma t9darch tzid`);
+      alert(`Stock na9es! ${rupture.nom} ba9i fih ghir ${rupture.restant.toFixed(2)}`);
       return;
     }
     setCart((c) => ({...c, [menuId]: (c[menuId] || 0) + 1 }));
@@ -172,7 +162,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: TableResto; serveu
                 const isRupture =!!rupture;
                 const inCart = cart[m.id] || 0;
                 return (
-                  <div key={m.id} className={`bg-[#1A1A1A] rounded-2xl overflow-hidden border ${isRupture? 'border-red-700 opacity-60' : inCart > 0? 'border-[#FF6B00]' : 'border-gray-800'}`}>
+                  <div key={m.id} className={`bg-[#1A1A1A] rounded-2xl overflow-hidden border ${isRupture? 'border-red-700 opacity-50' : inCart > 0? 'border-[#FF6B00]' : 'border-gray-800'}`}>
                     <div className="relative h-24 bg-gray-900">
                       {m.image_url? <img src={m.image_url} alt={m.nom} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon className="w-8 h-8 text-gray-700" /></div>}
                       {inCart > 0 && <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-[#FF6B00] text-white text-xs font-bold flex items-center justify-center">{inCart}</div>}
@@ -181,7 +171,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: TableResto; serveu
                       <h4 className="text-white text-sm font-semibold leading-tight">{m.nom}</h4>
                       <div className="flex items-center justify-between mt-1.5">
                         <span className="text-[#FF6B00] font-bold text-sm">{Number(m.prix).toFixed(0)} DH</span>
-                        {isRupture? <span className="text-red-400 text-[9px] font-bold">RUPTURE {rupture?.nom}</span> : inCart > 0? (
+                        {isRupture? <span className="text-red-400 text-[9px] font-bold">RUPTURE</span> : inCart > 0? (
                           <div className="flex items-center gap-1">
                             <button onClick={() => removeFromCart(m.id)} className="w-6 h-6 rounded-lg bg-gray-800 text-white flex items-center justify-center"><Minus className="w-3 h-3" /></button>
                             <span className="text-white text-sm font-bold w-5 text-center">{inCart}</span>
