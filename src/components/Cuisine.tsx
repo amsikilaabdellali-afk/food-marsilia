@@ -23,7 +23,7 @@ export default function Cuisine() {
       (tables || []).forEach((t: any) => { tableMap[t.id] = t; });
 
       const result = cmds.map((c: any) => ({
-       ...c,
+      ...c,
         items: itemsMap[c.id] || [],
         table_numero: c.table_id? tableMap[c.table_id]?.numero?? null : null,
       }));
@@ -45,28 +45,10 @@ export default function Cuisine() {
   }, [load]);
 
   const updateStatus = async (cmd: any, newStatus: string) => {
-    // Ila kan ghadi men en_attente -> en_preparation 3ad na9es stock b s7i7
-    if (cmd.statut === 'en_attente' && newStatus === 'en_preparation') {
-      try {
-        const menuIds = cmd.items.map((i: any) => i.menu_id);
-        const { data: recettes } = await supabase.from('recette').select('*').in('menu_id', menuIds);
-        const { data: matieres } = await supabase.from('matiere_premiere').select('*');
-
-        if (recettes && matieres) {
-          for (const item of cmd.items) {
-            const recs = (recettes as any[]).filter((r: any) => r.menu_id === item.menu_id);
-            for (const r of recs) {
-              const mp: any = (matieres as any[]).find((m: any) => m.id === r.matiere_id);
-              if (!mp) continue;
-              const besoin = Number(r.qte_necessaire?? 0) * item.qte;
-              const nouveauStock = Number(mp.quantite?? 0) - besoin;
-              await supabase.from('matiere_premiere').update({ quantite: Math.max(0, nouveauStock) }).eq('id', mp.id);
-            }
-          }
-        }
-      } catch (e) { console.error('Erreur stock', e); }
-    }
     await supabase.from('commandes').update({ statut: newStatus, updated_at: new Date().toISOString() }).eq('id', cmd.id);
+    if (newStatus === 'pret') {
+      await supabase.from('tables').update({ statut: 'pret' }).eq('id', cmd.table_id);
+    }
     load();
   };
 
@@ -97,16 +79,4 @@ export default function Cuisine() {
           </div>
           <div>
             <div className="flex items-center gap-2 mb-3"><Flame className="w-5 h-5 text-blue-400" /><h3 className="text-blue-300 font-semibold">En préparation</h3><span className="ml-auto text-gray-500 text-sm">{enPrep.length}</span></div>
-            <div className="space-y-3">{enPrep.map((c) => (<div key={c.id} className="bg-[#1A1A1A] rounded-2xl p-4 border border-gray-800"><div className="flex justify-between mb-2"><div><div className="text-white font-bold">Table {c.table_numero}</div><div className="text-gray-500 text-xs">{c.serveur_nom}</div></div><div className="text-gray-400 font-mono text-sm">{Math.floor((now - new Date(c.created_at).getTime())/1000/60)}:{(Math.floor((now - new Date(c.created_at).getTime())/1000)%60).toString().padStart(2,'0')}</div></div><div className="space-y-1 mb-3">{c.items.map((it:any)=>(<div key={it.id} className="flex gap-2 text-sm"><span className="bg-[#FF6B00]/20 text-[#FF6B00] font-bold w-7 h-7 rounded-lg flex items-center justify-center text-xs">{it.qte}</span><span className="text-gray-200">{it.menu_nom}</span></div>))}</div><button onClick={()=>updateStatus(c,'pret')} className="w-full flex justify-center gap-2 bg-green-600 text-white py-2.5 rounded-xl"><CheckCircle2 className="w-4 h-4" />Prêt!</button></div>))}{enPrep.length===0 && <div className="border-2 border-dashed border-gray-800 rounded-2xl p-8 text-center text-gray-600 text-sm">Rien en préparation</div>}</div>
-          </div>
-          <div>
-            <div className="flex items-center gap-2 mb-3"><CheckCircle2 className="w-5 h-5 text-green-400" /><h3 className="text-green-300 font-semibold">Prêt</h3><span className="ml-auto text-gray-500 text-sm">{pret.length}</span></div>
-            <div className="space-y-3">{pret.map((c) => (<div key={c.id} className="bg-[#1A1A1A] rounded-2xl p-4 border border-green-600"><div className="flex justify-between mb-2"><div><div className="text-white font-bold">Table {c.table_numero}</div><div className="text-gray-500 text-xs">{c.serveur_nom}</div></div><div className="text-green-400 font-mono text-sm">{Math.floor((now - new Date(c.created_at).getTime())/1000/60)}:{(Math.floor((now - new Date(c.created_at).getTime())/1000)%60).toString().padStart(2,'0')}</div></div><div className="space-y-1 mb-2">{c.items.map((it:any)=>(<div key={it.id} className="flex gap-2 text-sm"><span className="bg-[#FF6B00]/20 text-[#FF6B00] font-bold w-7 h-7 rounded-lg flex items-center justify-center text-xs">{it.qte}</span><span className="text-gray-200">{it.menu_nom}</span></div>))}</div><div className="text-center text-green-400 text-sm">En attente de service</div></div>))}{pret.length===0 && <div className="border-2 border-dashed border-gray-800 rounded-2xl p-8 text-center text-gray-600 text-sm">Aucun plat prêt</div>}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function playNotificationSound() { try { const ctx = new (window.AudioContext || (window as any).webkitAudioContext)(); const o = ctx.createOscillator(); const g = ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.frequency.value = 880; o.type = 'sine'; g.gain.setValueAtTime(0.3, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5); o.start(); o.stop(ctx.currentTime + 0.5); } catch {} }
+            <div className="space-y-3">{enPrep.map((c) => (<div key={c.id} className="bg-[#1A1A1A] rounded-2xl p-4 border border-gray
