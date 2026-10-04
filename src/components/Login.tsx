@@ -52,7 +52,7 @@ export default function Login({ onLogin }: { onLogin: (p: Profil) => void }) {
             <input type="password" value={codeAcces} onChange={e=>setCodeAcces(e.target.value)} placeholder="Code (123456)" className="w-full bg-[#0f0f0f] border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-orange-500 outline-none" required />
             {error && <p className="text-xs text-red-400 bg-red-900/20 border border-red-800 rounded-lg p-3 text-center">{error}</p>}
             <button type="submit" disabled={loading} className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-xl py-3.5 font-bold transition">{loading?'...':'Se connecter'}</button>
-            <div className="text-center text-[10px] text-zinc-600">Marsilia Food - Tit Mellil</div>
+            <div className="text-center text-[10px] text-zinc-600">Marsilia Food - HAJ FATEH</div>
           </form>
         </div>
       </div>
