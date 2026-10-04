@@ -16,7 +16,7 @@ function TablesView({ onSelectTable }: { onSelectTable: (t: any) => void }) {
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
     const [{ data: t }, { data: c }] = await Promise.all([
-      supabase.from('tables').select('*').order('numero'),
+      supabase.from('tables').select('*').order('etage').order('numero'),
       supabase.from('commandes').select('*').in('statut', ['en_attente', 'en_preparation', 'pret']),
     ]);
     setTables(t || []); setCommandes(c || []); setLoading(false);
@@ -29,19 +29,40 @@ function TablesView({ onSelectTable }: { onSelectTable: (t: any) => void }) {
     return 'libre';
   };
   if (loading) return <div className="flex justify-center py-12"><div className="w-8 h-8 border-2 border-[#FF6B00] border-t-transparent rounded-full animate-spin" /></div>;
+  const rdc = tables.filter((t:any)=>t.etage==='RDC'||!t.etage);
+  const premier = tables.filter((t:any)=>t.etage==='1er');
   return (
     <div className="p-4 max-w-4xl mx-auto">
-      <h2 className="text-xl font-bold text-white mb-4">Tables</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-        {tables.map((t) => {
-          const s = getStatus(t.id);
-          return <button key={t.id} onClick={() => onSelectTable(t)} className={`aspect-square rounded-2xl flex flex-col items-center justify-center border-2 ${s==='pret'?'bg-green-900/40 border-green-500':s==='en_cours'?'bg-blue-950/40 border-blue-600':'bg-[#1A1A1A] border-gray-800'}`}><div className="text-3xl font-bold text-white">{t.numero}</div><div className="text-xs mt-1 text-gray-500">{s}</div></button>
-        })}
-      </div>
+      <h2 className="text-xl font-bold text-white mb-4">Tables - {tables.length}</h2>
+
+      {rdc.length>0 && (
+        <>
+          <div className="flex items-center gap-2 mb-3"><div className="w-2 h-2 bg-green-500 rounded-full"></div><h3 className="font-black text-green-400 text-sm">RDC - {rdc.length} tables</h3></div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-8">
+            {rdc.map((t) => {
+              const s = getStatus(t.id);
+              return <button key={t.id} onClick={() => onSelectTable(t)} className={`aspect-square rounded-2xl flex flex-col items-center justify-center border-2 ${s==='pret'?'bg-green-900/40 border-green-500':s==='en_cours'?'bg-blue-950/40 border-blue-600':'bg-[#1A1A1A] border-gray-800'}`}><div className="text-3xl font-bold text-white">{t.numero}</div><div className="text-[10px] text-zinc-500">RDC</div><div className="text-xs mt-1 text-gray-500">{s}</div></button>
+            })}
+          </div>
+        </>
+      )}
+
+      {premier.length>0 && (
+        <>
+          <div className="flex items-center gap-2 mb-3"><div className="w-2 h-2 bg-blue-500 rounded-full"></div><h3 className="font-black text-blue-400 text-sm">1er ÉTAGE - {premier.length} tables</h3></div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {premier.map((t) => {
+              const s = getStatus(t.id);
+              return <button key={t.id} onClick={() => onSelectTable(t)} className={`aspect-square rounded-2xl flex flex-col items-center justify-center border-2 ${s==='pret'?'bg-green-900/40 border-green-500':s==='en_cours'?'bg-blue-900/40 border-blue-500':'bg-[#1A1A1A] border-blue-900/30'}`}><div className="text-3xl font-bold text-white">{t.numero}</div><div className="text-[10px] text-blue-400">1er</div><div className="text-xs mt-1 text-gray-500">{s}</div></button>
+            })}
+          </div>
+        </>
+      )}
+
+      {tables.length===0 && <div className="text-center text-zinc-500 py-10">Ma kayn 7ta table - zidhom f Admin → Tables</div>}
     </div>
   );
-}
-
+      }
 function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: string; onBack: () => void }) {
   const [menus, setMenus] = useState<any[]>([]);
   const [matieres, setMatieres] = useState<any[]>([]);
@@ -117,11 +138,8 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
         statut: 'en_attente',
         total: cartTotal
       }).select().single();
-
       if(cmdErr){ alert('Erreur commande: '+cmdErr.message); setSending(false); return; }
-
       if (cmd) {
-        // VERSION ULTRA SIMPLE - bla quantite bla plat bla prix_unitaire
         const items = cartItems.map((x: any) => {
           const mm = menus.find((m) => m.id === x[0])!;
           return {
@@ -132,13 +150,8 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
             menu_nom: mm.nom
           };
         });
-
-        console.log('Kan-sejjel items:', items);
         const { error: itemsErr } = await supabase.from('commande_items').insert(items as any);
-
         if(itemsErr){
-          console.log('Erreur avec menu_nom:', itemsErr);
-          // Ila menu_nom ma kaynch - n-jrbo b ghir qte + prix
           const itemsMin = cartItems.map((x: any) => {
             const mm = menus.find((m) => m.id === x[0])!;
             return {
@@ -149,16 +162,9 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
             };
           });
           const { error: errMin } = await supabase.from('commande_items').insert(itemsMin as any);
-          if(errMin){
-            alert('Erreur finale items: '+errMin.message);
-            setSending(false);
-            return;
-          }
+          if(errMin){ alert('Erreur finale items: '+errMin.message); setSending(false); return; }
         }
-
         await supabase.from('tables').update({ statut: 'en_cours' }).eq('id', table.id);
-
-        // Na9as stock - hadchi ba9i khdam!
         for (let i = 0; i < cartItems.length; i++) {
           const menuId = cartItems[i][0] as string;
           const qte = cartItems[i][1] as number;
@@ -180,7 +186,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
   if (loading) return <div className="flex justify-center py-12"><div className="w-8 h-8 border-2 border-[#FF6B00] border-t-transparent rounded-full animate-spin" /></div>;
   return (
     <div className="min-h-screen bg-[#0A0A0A] pb-32">
-      <div className="sticky top-0 z-30 bg-[#0A0A0A]/95 border-b border-gray-800 px-4 py-3"><div className="flex items-center gap-3 max-w-4xl mx-auto"><button onClick={onBack} className="p-2 rounded-lg bg-[#1A1A1A] text-gray-300"><ArrowLeft className="w-5 h-5" /></button><div><h2 className="text-white font-bold">Table {table.numero}</h2><p className="text-gray-500 text-xs">{serveurNom}</p></div></div></div>
+      <div className="sticky top-0 z-30 bg-[#0A0A0A]/95 border-b border-gray-800 px-4 py-3"><div className="flex items-center gap-3 max-w-4xl mx-auto"><button onClick={onBack} className="p-2 rounded-lg bg-[#1A1A1A] text-gray-300"><ArrowLeft className="w-5 h-5" /></button><div><h2 className="text-white font-bold">Table {table.numero} - {table.etage||'RDC'}</h2><p className="text-gray-500 text-xs">{serveurNom}</p></div></div></div>
       <div className="p-4 max-w-4xl mx-auto">
         <div className="flex gap-2 overflow-x-auto pb-2 mb-4">{catList.map((c) => <button key={c} onClick={() => setFilter(c)} className={`px-4 py-2 rounded-lg text-sm whitespace-nowrap ${filter === c? 'bg-[#FF6B00] text-white' : 'bg-[#1A1A1A] text-gray-400'}`}>{c === 'Tous'? 'Tous' : catLabel(c)}</button>)}</div>
         {Object.entries(grouped).map(([cat, items]) => (
@@ -206,4 +212,4 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
       {cartItems.length > 0 && <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#1A1A1A] border-t border-gray-800 p-4"><div className="max-w-4xl mx-auto flex items-center justify-between"><div><div className="text-gray-400 text-sm">{cartItems.length} articles</div><div className="text-white text-2xl font-bold">{cartTotal.toFixed(0)} DH</div></div><button onClick={send} disabled={sending} className="flex items-center gap-2 bg-[#FF6B00] text-white px-6 py-3.5 rounded-xl"><Send className="w-5 h-5" />{sending? 'Envoi...' : 'Envoyer'}</button></div></div>}
     </div>
   );
-      }
+}
