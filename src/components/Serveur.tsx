@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { ArrowLeft, Plus, Minus, Send, Image as ImageIcon, LogOut } from 'lucide-react';
 
@@ -67,6 +67,7 @@ function TablesView({ onSelectTable, profil, onLogout }: any) {
     </div>
   );
 }
+
 function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: string; onBack: () => void }) {
   const [menus, setMenus] = useState<any[]>([]);
   const [matieres, setMatieres] = useState<any[]>([]);
@@ -76,6 +77,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
   const [cart, setCart] = useState<Record<string, number>>({});
   const [filter, setFilter] = useState('Tous');
   const [sending, setSending] = useState(false);
+  const ticketRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     const [{ data: m }, { data: mp }, { data: r }, { data: cats }] = await Promise.all([
@@ -132,6 +134,30 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
   };
   const remove = (id: string) => setCart((c) => { const n = {...c }; if (n[id] > 1) n[id]--; else delete n[id]; return n; });
 
+  // ==== TICKET CUISINE - TABLE + SERVEUR + QUANTITES BLA PRIX ====
+  const printTicket = () => {
+    if(!ticketRef.current) return;
+    const w = window.open('', '', 'width=300,height=600');
+    if(!w) return;
+    w.document.write(`
+      <html><head><title>CUISINE - Table ${table.numero}</title>
+      <style>
+        @page { size: 80mm auto; margin: 0; }
+        body { font-family: monospace; width: 72mm; margin: 0; padding: 5mm; font-size: 14px; color:#000; }
+        h1 { text-align:center; font-size:22px; margin:0 0 5px 0; }
+       .center { text-align:center; }
+       .line { border-top:2px dashed #000; margin:8px 0; }
+       .big { font-size:28px; font-weight:900; text-align:center; margin:5px 0; }
+       .item { font-size:18px; font-weight:bold; margin:7px 0; }
+       .small { font-size:12px; }
+      </style>
+      </head><body>${ticketRef.current.innerHTML}</body></html>
+    `);
+    w.document.close();
+    w.focus();
+    setTimeout(()=>{ w.print(); w.close(); }, 350);
+  };
+
   const send = async () => {
     if (cartItems.length === 0) return;
     setSending(true);
@@ -181,6 +207,8 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
             await supabase.from('matiere_premiere').update({ quantite: nouveau } as any).eq('id', mp.id);
           }
         }
+        // IMPRIME TICKET DIRECT APRES ENVOI
+        setTimeout(()=> printTicket(), 500);
       }
     } catch (e:any) { console.error(e); alert('Erreur: '+e.message); }
     setSending(false);
@@ -190,6 +218,26 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
   if (loading) return <div className="flex justify-center py-12"><div className="w-8 h-8 border-2 border-[#FF6B00] border-t-transparent rounded-full animate-spin" /></div>;
   return (
     <div className="min-h-screen bg-[#0A0A0A] pb-32">
+      {/* TICKET CACHE - GHIR TABLE + SERVEUR + QUANTITES */}
+      <div ref={ticketRef} style={{display:'none'}}>
+        <h1>🍳 CUISINE</h1>
+        <div className="center">MARSILIA FOOD HAJ FATEH</div>
+        <div className="line"></div>
+        <div className="big">TABLE {table.numero}</div>
+        <div className="center">Etage: {table.etage||'RDC'}</div>
+        <div className="line"></div>
+        <div>Serveur: <b>{serveurNom}</b></div>
+        <div className="small">Date: {new Date().toLocaleString('fr-MA')}</div>
+        <div className="line"></div>
+        <div style={{fontWeight:'bold'}}>COMMANDE:</div>
+        {cartItems.map(([id, q])=>{
+          const mm = menus.find(x=>x.id===id);
+          return `<div class="item">${q}x ${mm?.nom}</div>`;
+        }).join('')}
+        <div className="line"></div>
+        <div className="center" style={{fontSize:'20px', fontWeight:900}}>A PREPARER</div>
+      </div>
+
       <div className="sticky top-0 z-30 bg-[#0A0A0A]/95 border-b border-gray-800 px-4 py-3"><div className="flex items-center gap-3 max-w-4xl mx-auto"><button onClick={onBack} className="p-2 rounded-lg bg-[#1A1A1A] text-gray-300"><ArrowLeft className="w-5 h-5" /></button><div><h2 className="text-white font-bold">Table {table.numero} - {table.etage||'RDC'}</h2><p className="text-gray-500 text-xs">{serveurNom}</p></div></div></div>
       <div className="p-4 max-w-4xl mx-auto">
         <div className="flex gap-2 overflow-x-auto pb-2 mb-4">{catList.map((c) => <button key={c} onClick={() => setFilter(c)} className={`px-4 py-2 rounded-lg text-sm whitespace-nowrap ${filter === c? 'bg-[#FF6B00] text-white' : 'bg-[#1A1A1A] text-gray-400'}`}>{c === 'Tous'? 'Tous' : catLabel(c)}</button>)}</div>
@@ -216,4 +264,4 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
       {cartItems.length > 0 && <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#1A1A1A] border-t border-gray-800 p-4"><div className="max-w-4xl mx-auto flex items-center justify-between"><div><div className="text-gray-400 text-sm">{cartItems.length} articles</div><div className="text-white text-2xl font-bold">{cartTotal.toFixed(0)} DH</div></div><button onClick={send} disabled={sending} className="flex items-center gap-2 bg-[#FF6B00] text-white px-6 py-3.5 rounded-xl"><Send className="w-5 h-5" />{sending? 'Envoi...' : 'Envoyer'}</button></div></div>}
     </div>
   );
-        }
+}
