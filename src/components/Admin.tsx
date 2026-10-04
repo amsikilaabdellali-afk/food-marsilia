@@ -77,10 +77,9 @@ function RapportsTab(){
     }
     setItemsMap(iMap); setTableMap(tMap); setCmds(data||[]); setLoading(false);
   },[date]);
-
   useEffect(()=>{load();},[load]);
 
-  const getTableNum=(c:any)=>c.table_numero||c.table_num||tableMap[c.table_id]?.numero||'?';
+  const getTableNum=(c:any)=>c.table_numero||c.table_num||tableMap[c.table_id]?.numero||tableMap[c.table_id]?.nom||'?';
   const groups={
     espece: cmds.filter(c=> (c.payment_method||'espece')==='espece'),
     tpe: cmds.filter(c=> c.payment_method==='tpe'),
@@ -90,6 +89,7 @@ function RapportsTab(){
   };
   const sum=(arr:any[])=>arr.reduce((s,c)=>s+Number(c.total_final??c.total??0),0);
   const sumReel=(arr:any[])=>arr.reduce((s,c)=>s+Number(c.total??0),0);
+  const totalRemisePerdu=groups.remise.reduce((s:any,c:any)=>s+Number(c.remise||0),0);
   const totalEncaisse=sum(groups.espece)+sum(groups.tpe)+sum(groups.cheque)+sum(groups.remise);
 
   const viderToday=async()=>{
@@ -101,18 +101,38 @@ function RapportsTab(){
     alert(`Tmsa7 ${ids.length}`); load();
   };
   const viderTout=async()=>{
-    if(!confirm('⛔️ KHWI GA3?')) return; if(!confirm('Mta2akked?')) return;
+    if(!confirm('⛔️ KHWI GA3 - ga3 commandes ghadi t-msa7?')) return;
+    if(!confirm('Mta2akked 100%?')) return;
     await supabase.from('commande_items').delete().neq('id','00000000-0000-0000-0000-000000000000');
     await supabase.from('commandes').delete().neq('id','00000000-0000-0000-0000-000000000000');
     await supabase.from('tables').update({statut:'libre'}).neq('id','00000000-0000-0000-0000-000000000000');
     alert('✅ Khwa - 0'); load();
   };
+
   const exportPDF=()=>{
-    const html=`<html><head><title>${date}</title><style>body{font-family:Arial;font-size:11px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #aaa;padding:4px}th{background:#000;color:#fff}</style></head><body><h1 style="text-align:center">Rapport ${date} - ${totalEncaisse.toFixed(0)} DH - ${cmds.length} cmd</h1>${['espece','tpe','cheque','remise','offert'].map(k=>{const arr=groups[k as keyof typeof groups]; if(!arr.length) return ''; return `<h2>${k.toUpperCase()} - ${sum(arr).toFixed(0)} DH (${arr.length})</h2><table><tr><th>Heure</th><th>Table</th><th>Articles</th><th>Total</th></tr>${arr.map((c:any)=>{const its=itemsMap[c.id]||[]; const q=its.map((it:any)=>`${it.qte||1}x ${it.menu_nom||it.nom}`).join(' + ')||'-'; return `<tr><td>${new Date(c.paye_at||c.created_at).toLocaleTimeString()}</td><td>${getTableNum(c)}</td><td>${q}</td><td>${c.total_final??c.total} DH</td></tr>`}).join('')}</table>`}).join('')}<script>setTimeout(()=>window.print(),500);<\/script></body></html>`;
+    const html=`<html><head><title>${date}</title><style>body{font-family:Arial;font-size:11px}h2{background:#111;color:#fff;padding:6px;margin-top:15px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #aaa;padding:4px}th{background:#000;color:#fff}</style></head><body><h1 style="text-align:center">Marsilia Food - Rapport ${date}</h1><p style="text-align:center;font-weight:bold">${totalEncaisse.toFixed(0)} DH encaissé - ${cmds.length} cmd | ESPECE ${sum(groups.espece).toFixed(0)} | TPE ${sum(groups.tpe).toFixed(0)} | CHEQUE ${sum(groups.cheque).toFixed(0)} | REMISE ${sum(groups.remise).toFixed(0)} (-${totalRemisePerdu.toFixed(0)}) | OFFERT ${sumReel(groups.offert).toFixed(0)} perdu</p>${['espece','tpe','cheque','remise','offert'].map(k=>{const arr=groups[k as keyof typeof groups]; if(!arr.length) return ''; return `<h2>${k.toUpperCase()} - ${k==='offert'? sumReel(arr).toFixed(0)+' DH perdu' : sum(arr).toFixed(0)+' DH'} (${arr.length} cmd)</h2><table><tr><th>Heure</th><th>Table</th><th>Serveur</th><th>Articles</th><th>Total</th><th>Encaissé</th></tr>${arr.map((c:any)=>{const its=itemsMap[c.id]||[]; const q=its.map((it:any)=>`${it.qte||it.quantite||1}x ${it.menu_nom||it.nom}`).join(' + ')||'-'; return `<tr><td>${new Date(c.paye_at||c.created_at).toLocaleTimeString()}</td><td>${getTableNum(c)}</td><td>${c.serveur_nom||''}</td><td>${q}</td><td>${c.total} DH</td><td><b>${c.total_final??c.total} DH</b> ${c.remise? `(-${c.remise} DH)`:''}</td></tr>`}).join('')}</table>`}).join('')}<script>setTimeout(()=>window.print(),600);<\/script></body></html>`;
     const w=window.open('','_blank'); if(w){ w.document.write(html); w.document.close(); }
   };
 
-  if(loading) return <div className="p-8 text-center">Chargement...</div>;
+  const renderCmd=(c:any)=>{
+    const its=itemsMap[c.id]||[];
+    return (
+      <div key={c.id} className="bg-[#1A1A1A] border border-zinc-800 rounded-xl p-3 text-sm mb-2">
+        <div className="flex justify-between font-bold text-white">
+          <span>Table {getTableNum(c)} - {c.serveur_nom||'abdellali'}</span>
+          <span className="text-orange-400">{Number(c.total_final??c.total).toFixed(0)} DH {c.payment_method==='offert'? `(0 DH - réel ${c.total} DH)` : ''}</span>
+        </div>
+        <div className="text-[11px] text-zinc-400 mt-1">{new Date(c.paye_at||c.created_at).toLocaleTimeString('fr-FR')} - {c.payment_method?.toUpperCase()} {c.remise_percent? `- Remise ${c.remise_percent}% (-${Number(c.remise||0).toFixed(0)} DH)` : ''}</div>
+        <div className="mt-2 space-y-1 border-t border-zinc-800 pt-2">
+          {its.map((it:any)=><div key={it.id} className="flex justify-between text-zinc-300"><span>{it.qte||it.quantite||1}x {it.menu_nom||it.nom||it.plat}</span><span>{(Number(it.qte||it.quantite||1)*Number(it.prix||it.prix_unitaire||0)).toFixed(0)} DH</span></div>)}
+          {its.length===0 && <div className="text-zinc-500 text-xs">Total: {c.total} DH</div>}
+        </div>
+        {c.remise>0 && <div className="text-yellow-400 text-xs mt-1 font-bold">Remise: -{Number(c.remise).toFixed(0)} DH → Encaissé: {Number(c.total_final).toFixed(0)} DH</div>}
+      </div>
+    );
+  };
+
+  if(loading) return <div className="p-8 text-center text-zinc-500">Chargement...</div>;
 
   return <div className="space-y-3">
     <div className="flex gap-2">
@@ -124,14 +144,31 @@ function RapportsTab(){
       <button onClick={viderToday} className="bg-yellow-900/50 border border-yellow-600 text-yellow-300 font-bold py-3 rounded-xl text-sm">🗑️ Khwi dyal {date}</button>
       <button onClick={viderTout} className="bg-red-900/60 border-2 border-red-600 text-red-300 font-black py-3 rounded-xl text-sm">⛔️ KHWI GA3 - 0</button>
     </div>
-    <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800 text-center font-black text-xl">{totalEncaisse.toFixed(1)} DH - {cmds.length} cmd</div>
+    <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800 text-center font-black text-xl">{totalEncaisse.toFixed(1)} DH - {cmds.length} cmd<div className="text-xs font-normal text-zinc-500">Encaissé réel (bla OFFERT)</div></div>
+
+    {/* 5 CARTES - LFO9 */}
     <div className="grid grid-cols-2 gap-2">
       <div className="bg-green-900/30 border border-green-700 rounded-xl p-3"><div className="text-[10px] text-green-300">ESPECE</div><div className="font-bold text-green-400">{sum(groups.espece).toFixed(0)} DH</div><div className="text-xs text-zinc-400">{groups.espece.length} cmd</div></div>
       <div className="bg-blue-900/30 border border-blue-700 rounded-xl p-3"><div className="text-[10px] text-blue-300">TPE</div><div className="font-bold text-blue-400">{sum(groups.tpe).toFixed(0)} DH</div><div className="text-xs text-zinc-400">{groups.tpe.length} cmd</div></div>
       <div className="bg-purple-900/30 border border-purple-700 rounded-xl p-3"><div className="text-[10px] text-purple-300">CHEQUE</div><div className="font-bold text-purple-400">{sum(groups.cheque).toFixed(0)} DH</div><div className="text-xs text-zinc-400">{groups.cheque.length} cmd</div></div>
-      <div className="bg-orange-900/30 border border-orange-700 rounded-xl p-3"><div className="text-[10px] text-orange-300">OFFERT</div><div className="font-bold text-orange-400">{sumReel(groups.offert).toFixed(0)} DH perdu</div><div className="text-xs text-zinc-400">{groups.offert.length} cmd</div></div>
+      <div className="bg-yellow-900/40 border-2 border-yellow-500 rounded-xl p-3"><div className="text-[10px] text-yellow-300 font-black">REMISE ⭐</div><div className="font-bold text-yellow-400">{sum(groups.remise).toFixed(0)} DH</div><div className="text-xs text-zinc-300">{groups.remise.length} cmd (-{totalRemisePerdu.toFixed(0)} DH)</div></div>
+      <div className="bg-orange-900/30 border border-orange-700 rounded-xl p-3 col-span-2"><div className="text-[10px] text-orange-300">OFFERT</div><div className="font-bold text-orange-400">{sumReel(groups.offert).toFixed(0)} DH perdu</div><div className="text-xs text-zinc-400">{groups.offert.length} cmd</div></div>
     </div>
-    {cmds.length===0 && <div className="text-center py-16 text-zinc-600">Ma kayn walou - 0 commande f {date}</div>}
-    {cmds.length>0 && cmds.map((c:any)=>{const its=itemsMap[c.id]||[]; return <div key={c.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-sm"><div className="flex justify-between font-bold"><span>Table {getTableNum(c)}</span><span>{Number(c.total_final??c.total).toFixed(0)} DH - {c.payment_method}</span></div><div className="text-xs text-zinc-400 mt-1">{its.map((it:any)=>`${it.qte||1}x ${it.menu_nom||it.nom}`).join(' + ')}</div></div>})}
+
+    {/* DETAIL GROUPE PAR GROUPE */}
+    {[
+      { key:'espece', label:`ESPECE (${groups.espece.length}) - ${sum(groups.espece).toFixed(0)} DH`, data: groups.espece, color:'border-green-600' },
+      { key:'tpe', label:`TPE (${groups.tpe.length}) - ${sum(groups.tpe).toFixed(0)} DH`, data: groups.tpe, color:'border-blue-600' },
+      { key:'cheque', label:`CHEQUE (${groups.cheque.length}) - ${sum(groups.cheque).toFixed(0)} DH`, data: groups.cheque, color:'border-purple-600' },
+      { key:'remise', label:`REMISE (${groups.remise.length}) - ${sum(groups.remise).toFixed(0)} DH - Total Remise -${totalRemisePerdu.toFixed(0)} DH`, data: groups.remise, color:'border-yellow-500' },
+      { key:'offert', label:`OFFERT (${groups.offert.length}) - ${sumReel(groups.offert).toFixed(0)} DH perdu`, data: groups.offert, color:'border-orange-600' },
+    ].map(g=> g.data.length>0 && (
+      <div key={g.key} className={`border-l-4 ${g.color} pl-2 pt-1`}>
+        <h3 className="font-black text-white py-2 text-[13px]">{g.label}</h3>
+        <div className="space-y-2">{g.data.map(renderCmd)}</div>
+      </div>
+    ))}
+
+    {cmds.length===0 && <div className="text-center py-16 text-zinc-600">Ma kayn walou f {date}<br/><span className="text-xs">Daba 0 - bda men lawal</span></div>}
   </div>
 }
