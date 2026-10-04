@@ -9,6 +9,36 @@ import {
 
 type Tab = 'dashboard' | 'menu' | 'stock' | 'commandes' | 'matiere' | 'categories' | 'utilisateurs' | 'rapports';
 
+// ============ HELPERS ============
+const pad = (n: number) => String(n).padStart(2, '0');
+
+// Date locale (pas UTC) au format YYYY-MM-DD
+const localDate = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+// Début (inclus) et fin (exclue) d'une journée locale
+const dayRange = (date: string) => {
+  const [y, m, d] = date.split('-').map(Number);
+  return {
+    start: new Date(y, m - 1, d).toISOString(),
+    end: new Date(y, m - 1, d + 1).toISOString(),
+  };
+};
+
+// Début (inclus) et fin (exclue) d'un mois local, ym = YYYY-MM
+const monthRange = (ym: string) => {
+  const [y, m] = ym.split('-').map(Number);
+  return {
+    start: new Date(y, m - 1, 1).toISOString(),
+    end: new Date(y, m, 1).toISOString(),
+  };
+};
+
+// Échappe le HTML pour l'impression
+const esc = (s: string) =>
+  String(s ?? '').replace(/[&<>"']/g, (c) =>
+    (({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c])
+  );
+
 export default function Admin() {
   const [tab, setTab] = useState<Tab>('dashboard');
 
@@ -67,11 +97,11 @@ function DashboardTab() {
 
   useEffect(() => {
     const load = async () => {
-      const today = new Date().toISOString().split('T')[0];
+      const { start } = dayRange(localDate());
       const { data: cmds } = await supabase
         .from('commandes')
         .select('*')
-        .gte('created_at', today + 'T00:00:00')
+        .gte('created_at', start)
         .order('created_at', { ascending: false });
       setCommandes(cmds || []);
 
@@ -82,6 +112,8 @@ function DashboardTab() {
           .select('*')
           .in('commande_id', ids);
         setItems(its || []);
+      } else {
+        setItems([]);
       }
       setLoading(false);
     };
@@ -239,13 +271,16 @@ function MenuTab() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Supprimer ce plat ?')) return;
-    await supabase.from('recette').delete().eq('menu_id', id);
-    await supabase.from('menu').delete().eq('id', id);
+    const { error: e1 } = await supabase.from('recette').delete().eq('menu_id', id);
+    if (e1) { alert(e1.message); return; }
+    const { error: e2 } = await supabase.from('menu').delete().eq('id', id);
+    if (e2) { alert(e2.message); return; }
     load();
   };
 
   const toggleDispo = async (m: Menu) => {
-    await supabase.from('menu').update({ disponible: !m.disponible }).eq('id', m.id);
+    const { error } = await supabase.from('menu').update({ disponible: !m.disponible }).eq('id', m.id);
+    if (error) { alert(error.message); return; }
     load();
   };
 
@@ -429,52 +464,23 @@ function MenuForm({ menu, matieres, recettes, categories, onClose, onSaved }: {
     let menuId = menu?.id;
 
     if (menu) {
-      await supabase.from('menu').update(payload).eq('id', menu.id);
-      await supabase.from('recette').delete().eq('menu_id', menu.id);
+      const { error } = await supabase.from('menu').update(payload).eq('id', menu.id);
+      if (error) { alert(error.message); setSaving(false); return; }
     } else {
-      const { data } = await supabase.from('menu').insert(payload).select().single();
-      menuId = data?.id;
+      const { data, error } = await supabase.from('menu').insert(payload).select().single();
+      if (error || !data) { alert(error?.message || 'Erreur'); setSaving(false); return; }
+      menuId = data.id;
     }
 
-    if (menuId && ingredients.length > 0) {
-      const recetteRows = ingredients
+    if (menuId) {
+      await supabase.from('recette').delete().eq('menu_id', menuId);
+      const rows = ingredients
         .filter((i) => i.matiere_id && parseFloat(i.qte) > 0)
         .map((i) => ({ menu_id: menuId, matiere_id: i.matiere_id, qte_necessaire: parseFloat(i.qte) }));
-      if (recetteRows.length > 0) {
-        await supabase.from('recette').insert(recetteRows);
+      if (rows.length > 0) {
+        const { error } = await supabase.from('recette').insert(rows);
+        if (error) alert(error.message);
       }
     }
 
-    setSaving(false);
-    onSaved();
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-[#1A1A1A] rounded-2xl w-full max-w-lg my-8 border border-gray-800">
-        <div className="flex items-center justify-between p-5 border-b border-gray-800">
-          <h3 className="text-white font-semibold text-lg">{menu ? 'Modifier le plat' : 'Nouveau plat'}</h3>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-800 text-gray-400">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
-          <div>
-            <label className="block text-sm text-gray-400 mb-1.5">Nom du plat</label>
-            <input
-              value={nom}
-              onChange={(e) => setNom(e.target.value)}
-              className="w-full bg-[#0A0A0A] text-white rounded-xl py-2.5 px-3 border border-gray-700 focus:border-[#FF6B00] focus:outline-none"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm text-gray-400 mb-1.5">Prix (DH)</label>
-              <input
-                type="number"
-                value={prix}
-                onChange={(e) => setPrix(e.target.value)}
-                classN
+    setSaving(f
