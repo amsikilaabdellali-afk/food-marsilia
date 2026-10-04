@@ -62,7 +62,6 @@ function TablesView({ onSelectTable, profil, onLogout }: any) {
             </div>
           </>
         )}
-        {tables.length===0 && <div className="text-center text-zinc-500 py-10">Ma kayn 7ta table - zidhom f Admin → Tables</div>}
       </div>
     </div>
   );
@@ -77,7 +76,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
   const [cart, setCart] = useState<Record<string, number>>({});
   const [filter, setFilter] = useState('Tous');
   const [sending, setSending] = useState(false);
-  const ticketRef = useRef<HTMLDivElement>(null);
+  const [lastTicket, setLastTicket] = useState<string>(''); // BACH N-WRIW TICKET ILA BROWSER BLOKA PRINT
 
   const load = useCallback(async () => {
     const [{ data: m }, { data: mp }, { data: r }, { data: cats }] = await Promise.all([
@@ -95,7 +94,6 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
     if (!mp) return 0;
     return Number(mp.quantite?? 0);
   };
-
   const checkRupture = (menuId: string, addQte = 1) => {
     const recs = recettes.filter((r: any) => r.menu_id === menuId);
     if (recs.length === 0) return null;
@@ -134,32 +132,39 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
   };
   const remove = (id: string) => setCart((c) => { const n = {...c }; if (n[id] > 1) n[id]--; else delete n[id]; return n; });
 
-  // ==== TICKET CUISINE - TABLE + SERVEUR + QUANTITES BLA PRIX ====
-  const printTicket = () => {
-    if(!ticketRef.current) return;
-    const w = window.open('', '', 'width=300,height=600');
-    if(!w) return;
-    w.document.write(`
-      <html><head><title>CUISINE - Table ${table.numero}</title>
-      <style>
-        @page { size: 80mm auto; margin: 0; }
-        body { font-family: monospace; width: 72mm; margin: 0; padding: 5mm; font-size: 14px; color:#000; }
-        h1 { text-align:center; font-size:22px; margin:0 0 5px 0; }
-       .center { text-align:center; }
-       .line { border-top:2px dashed #000; margin:8px 0; }
-       .big { font-size:28px; font-weight:900; text-align:center; margin:5px 0; }
-       .item { font-size:18px; font-weight:bold; margin:7px 0; }
-       .small { font-size:12px; }
-      </style>
-      </head><body>${ticketRef.current.innerHTML}</body></html>
-    `);
-    w.document.close();
-    w.focus();
-    setTimeout(()=>{ w.print(); w.close(); }, 350);
+  const buildTicketHtml = () => {
+    const date = new Date().toLocaleString('fr-MA');
+    const lines = cartItems.map(([id,q])=>{
+      const mm = menus.find(x=>x.id===id);
+      return `<div style="font-size:19px; font-weight:900; margin:8px 0; display:flex; justify-content:space-between;"><span>${q}x ${mm?.nom}</span></div>`;
+    }).join('');
+    return `
+      <div style="font-family:monospace; width:72mm; padding:5mm;">
+        <div style="text-align:center; font-size:22px; font-weight:900;">🍳 CUISINE</div>
+        <div style="text-align:center; font-size:13px;">MARSILIA FOOD HAJ FATEH</div>
+        <div style="border-top:2px dashed #000; margin:8px 0;"></div>
+        <div style="font-size:30px; font-weight:900; text-align:center;">TABLE ${table.numero}</div>
+        <div style="text-align:center;">${table.etage||'RDC'}</div>
+        <div style="border-top:2px dashed #000; margin:8px 0;"></div>
+        <div>Serveur: <b>${serveurNom}</b></div>
+        <div style="font-size:11px;">${date}</div>
+        <div style="border-top:2px dashed #000; margin:8px 0;"></div>
+        <div style="font-weight:bold;">COMMANDE:</div>
+        ${lines}
+        <div style="border-top:2px dashed #000; margin:8px 0;"></div>
+        <div style="text-align:center; font-size:22px; font-weight:900;">A PREPARER</div>
+      </div>
+    `;
   };
 
   const send = async () => {
     if (cartItems.length === 0) return;
+
+    // 1 - 7ALL PRINT WINDOW 9BAL AWAIT BACH MA Y-TBLOKACH
+    const ticketHtml = buildTicketHtml();
+    setLastTicket(ticketHtml);
+    const printWindow = window.open('', '_blank', 'width=320,height=600');
+
     setSending(true);
     try {
       const { data: cmd, error: cmdErr } = await supabase.from('commandes').insert({
@@ -168,32 +173,21 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
         statut: 'en_attente',
         total: cartTotal
       }).select().single();
-      if(cmdErr){ alert('Erreur commande: '+cmdErr.message); setSending(false); return; }
+      if(cmdErr){ alert('Erreur commande: '+cmdErr.message); if(printWindow) printWindow.close(); setSending(false); return; }
       if (cmd) {
         const items = cartItems.map((x: any) => {
           const mm = menus.find((m) => m.id === x[0])!;
-          return {
-            commande_id: cmd.id,
-            menu_id: x[0],
-            qte: Number(x[1]),
-            prix: Number(mm.prix),
-            menu_nom: mm.nom
-          };
+          return { commande_id: cmd.id, menu_id: x[0], qte: Number(x[1]), prix: Number(mm.prix), menu_nom: mm.nom };
         });
-        const { error: itemsErr } = await supabase.from('commande_items').insert(items as any);
-        if(itemsErr){
-          const itemsMin = cartItems.map((x: any) => {
-            const mm = menus.find((m) => m.id === x[0])!;
-            return {
-              commande_id: cmd.id,
-              menu_id: x[0],
-              qte: Number(x[1]),
-              prix: Number(mm.prix)
-            };
-          });
-          const { error: errMin } = await supabase.from('commande_items').insert(itemsMin as any);
-          if(errMin){ alert('Erreur finale items: '+errMin.message); setSending(false); return; }
-        }
+        await supabase.from('commande_items').insert(items as any).then(async ({error})=>{
+          if(error){
+            const itemsMin = cartItems.map((x: any) => {
+              const mm = menus.find((m) => m.id === x[0])!;
+              return { commande_id: cmd.id, menu_id: x[0], qte: Number(x[1]), prix: Number(mm.prix) };
+            });
+            await supabase.from('commande_items').insert(itemsMin as any);
+          }
+        });
         await supabase.from('tables').update({ statut: 'en_cours' }).eq('id', table.id);
         for (let i = 0; i < cartItems.length; i++) {
           const menuId = cartItems[i][0] as string;
@@ -207,37 +201,31 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
             await supabase.from('matiere_premiere').update({ quantite: nouveau } as any).eq('id', mp.id);
           }
         }
-        // IMPRIME TICKET DIRECT APRES ENVOI
-        setTimeout(()=> printTicket(), 500);
+        // 2 - DABA IMPRIME
+        if(printWindow){
+          printWindow.document.write(`<html><head><title>TABLE ${table.numero}</title><style>@page{size:80mm auto; margin:0} body{margin:0}</style></head><body>${ticketHtml}</body></html>`);
+          printWindow.document.close();
+          printWindow.focus();
+          setTimeout(()=>{ printWindow.print(); printWindow.close(); }, 400);
+        }
       }
-    } catch (e:any) { console.error(e); alert('Erreur: '+e.message); }
+    } catch (e:any) { if(printWindow) printWindow.close(); alert('Erreur: '+e.message); }
     setSending(false);
     onBack();
+  };
+
+  // Manual print ila t-bloka auto
+  const manualPrint = () => {
+    if(!lastTicket) return;
+    const w = window.open('', '', 'width=320,height=600');
+    if(!w) return;
+    w.document.write(`<html><head><style>@page{size:80mm auto; margin:0} body{margin:0}</style></head><body>${lastTicket}</body></html>`);
+    w.document.close(); w.focus(); setTimeout(()=>{w.print(); w.close();},400);
   };
 
   if (loading) return <div className="flex justify-center py-12"><div className="w-8 h-8 border-2 border-[#FF6B00] border-t-transparent rounded-full animate-spin" /></div>;
   return (
     <div className="min-h-screen bg-[#0A0A0A] pb-32">
-      {/* TICKET CACHE - GHIR TABLE + SERVEUR + QUANTITES */}
-      <div ref={ticketRef} style={{display:'none'}}>
-        <h1>🍳 CUISINE</h1>
-        <div className="center">MARSILIA FOOD HAJ FATEH</div>
-        <div className="line"></div>
-        <div className="big">TABLE {table.numero}</div>
-        <div className="center">Etage: {table.etage||'RDC'}</div>
-        <div className="line"></div>
-        <div>Serveur: <b>{serveurNom}</b></div>
-        <div className="small">Date: {new Date().toLocaleString('fr-MA')}</div>
-        <div className="line"></div>
-        <div style={{fontWeight:'bold'}}>COMMANDE:</div>
-        {cartItems.map(([id, q])=>{
-          const mm = menus.find(x=>x.id===id);
-          return `<div class="item">${q}x ${mm?.nom}</div>`;
-        }).join('')}
-        <div className="line"></div>
-        <div className="center" style={{fontSize:'20px', fontWeight:900}}>A PREPARER</div>
-      </div>
-
       <div className="sticky top-0 z-30 bg-[#0A0A0A]/95 border-b border-gray-800 px-4 py-3"><div className="flex items-center gap-3 max-w-4xl mx-auto"><button onClick={onBack} className="p-2 rounded-lg bg-[#1A1A1A] text-gray-300"><ArrowLeft className="w-5 h-5" /></button><div><h2 className="text-white font-bold">Table {table.numero} - {table.etage||'RDC'}</h2><p className="text-gray-500 text-xs">{serveurNom}</p></div></div></div>
       <div className="p-4 max-w-4xl mx-auto">
         <div className="flex gap-2 overflow-x-auto pb-2 mb-4">{catList.map((c) => <button key={c} onClick={() => setFilter(c)} className={`px-4 py-2 rounded-lg text-sm whitespace-nowrap ${filter === c? 'bg-[#FF6B00] text-white' : 'bg-[#1A1A1A] text-gray-400'}`}>{c === 'Tous'? 'Tous' : catLabel(c)}</button>)}</div>
@@ -261,7 +249,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
           </div>
         ))}
       </div>
-      {cartItems.length > 0 && <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#1A1A1A] border-t border-gray-800 p-4"><div className="max-w-4xl mx-auto flex items-center justify-between"><div><div className="text-gray-400 text-sm">{cartItems.length} articles</div><div className="text-white text-2xl font-bold">{cartTotal.toFixed(0)} DH</div></div><button onClick={send} disabled={sending} className="flex items-center gap-2 bg-[#FF6B00] text-white px-6 py-3.5 rounded-xl"><Send className="w-5 h-5" />{sending? 'Envoi...' : 'Envoyer'}</button></div></div>}
+      {cartItems.length > 0 && <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#1A1A1A] border-t border-gray-800 p-4"><div className="max-w-4xl mx-auto flex items-center justify-between"><div><div className="text-gray-400 text-sm">{cartItems.length} articles</div><div className="text-white text-2xl font-bold">{cartTotal.toFixed(0)} DH</div></div><button onClick={send} disabled={sending} className="flex items-center gap-2 bg-[#FF6B00] text-white px-6 py-3.5 rounded-xl font-bold"><Send className="w-5 h-5" />{sending? 'Envoi...' : 'Envoyer + Ticket'}</button></div></div>}
     </div>
   );
-}
+                                                                                    }
