@@ -4,41 +4,21 @@ import Login from './components/Login';
 
 export default function App(){
   const [profil,setProfil]=useState<any>(null);
-  const [loading,setLoading]=useState(true);
-
   useEffect(()=>{
-    const s = localStorage.getItem('marsilia_profil');
+    const s=localStorage.getItem('marsilia_profil');
     if(s){ try{ setProfil(JSON.parse(s)); }catch{} }
-    setLoading(false);
   },[]);
-
-  const onLogin = (p:any)=>{
-    localStorage.setItem('marsilia_profil', JSON.stringify(p));
-    setProfil(p);
-  };
-  const onLogout = ()=>{
-    localStorage.clear();
-    setProfil(null);
-  };
-
-  if(loading) return <div className="min-h-screen bg-black text-white flex items-center justify-center">...</div>;
-  if(!profil) return <Login onLogin={onLogin} />;
-
-  const role = String(profil.user.role||'').toLowerCase();
-  const nom = profil.user.nom;
-  const ident = profil.user.identifiant;
-
-  return (
+  if(!profil) return <Login onLogin={(p:any)=>{localStorage.setItem('marsilia_profil',JSON.stringify(p));setProfil(p);}} />;
+  const role=String(profil.user.role||'').toLowerCase();
+  return(
     <div className="min-h-screen bg-black text-white">
-      <div className="bg-orange-600 text-white text-center py-3 font-black text-sm">
-        ROLE={role} | {nom} ({ident}) 
-        <button onClick={onLogout} className="ml-4 bg-black text-white px-3 py-1 rounded text-xs">Logout</button>
+      <div className="bg-yellow-500 text-black p-3 font-black flex justify-between">
+        <span>{role.toUpperCase()}: {profil.user.nom} ({profil.user.identifiant})</span>
+        <button onClick={()=>{localStorage.clear();setProfil(null);}} className="bg-black text-white px-3 py-1 rounded text-xs">Logout</button>
       </div>
-      <div className="p-6">
-        {role.includes('caiss') && <div className="bg-yellow-500 text-black p-6 rounded-2xl font-black text-xl">✅ CAISSE KHADAM! {nom} - {ident}</div>}
-        {role.includes('admin') && <div className="bg-red-600 p-6 rounded-2xl font-black">ADMIN: {nom} - Khdam</div>}
-        {role.includes('serveur') && <div className="bg-blue-600 p-6 rounded-2xl font-black">SERVEUR: {nom}</div>}
-        {role.includes('cuisin') && <div className="bg-green-600 p-6 rounded-2xl font-black">CUISINE: {nom}</div>}
+      <div className="p-10 text-center text-2xl font-black">
+        ✅ {role==='caisse'?'CAISSE KHADAM!':'ADMIN KHADAM!'}<br/>
+        <span className="text-sm font-normal">{profil.user.nom}</span>
       </div>
     </div>
   );
