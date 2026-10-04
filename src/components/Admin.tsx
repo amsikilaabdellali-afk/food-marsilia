@@ -8,7 +8,7 @@ export default function Admin(){
   return(
     <div className="min-h-screen bg-black text-white pb-20">
       <div className="flex gap-1 p-2 border-b border-zinc-800 sticky top-0 bg-black z-20 overflow-x-auto">
-        {['menu','matiere','stock','categories','users','rapports'].map((t)=><button key={t} onClick={()=>setTab(t)} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${tab===t?'bg-orange-600':'bg-zinc-800'}`}>{t}</button>)}
+        {['menu','matiere','stock','categories','users','rapports'].map((t)=><button key={t} onClick={()=>setTab(t)} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${tab===t?'bg-orange-600':'bg-zinc-800'}`}>{t.toUpperCase()}</button>)}
       </div>
       <div className="p-4 max-w-5xl mx-auto">
         {tab==='menu'&&<MenuTab/>}{tab==='matiere'&&<MatiereTab/>}{tab==='stock'&&<StockTab/>}{tab==='categories'&&<CategoriesTab/>}{tab==='users'&&<UsersTab/>}{tab==='rapports'&&<RapportsTab/>}
@@ -33,14 +33,12 @@ function MenuForm({menu,categories,matieres,recs,onClose,onSaved}:any){
   return <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"><div className="bg-zinc-900 rounded-2xl w-full max-w-lg border border-zinc-800"><div className="p-4 flex justify-between border-b border-zinc-800"><h3 className="font-bold">Plat - {ings.length} ing</h3><button onClick={onClose}><X className="w-5 h-5"/></button></div><div className="p-4 space-y-3 max-h-[75vh] overflow-auto"><input value={nom} onChange={e=>setNom(e.target.value)} placeholder="Nom" className="w-full bg-black p-3 rounded-xl border border-zinc-700"/><div className="flex gap-2"><input value={prix} onChange={e=>setPrix(e.target.value)} type="number" placeholder="Prix" className="flex-1 bg-black p-3 rounded-xl border border-zinc-700"/><select value={cat} onChange={e=>setCat(e.target.value)} className="flex-1 bg-black p-3 rounded-xl border border-zinc-700">{categories.map((c:any)=><option key={c.id} value={c.nom}>{c.label}</option>)}</select></div><div className="bg-black border-2 border-orange-500/30 rounded-xl p-3"><select value={sel} onChange={e=>{setSel(e.target.value); const m=matieres.find((x:any)=>x.id===e.target.value); if(m) setUnite(m.unite);}} className="w-full bg-zinc-800 p-3.5 rounded-xl border border-zinc-700 mb-2 font-bold">{matieres.map((m:any)=>{const used=ings.some((i:any)=>i.matiere_id===m.id); return <option key={m.id} value={m.id}>{used?'✅ ':''}{m.nom}</option>})}</select><div className="flex gap-2 mb-2"><input value={qte} onChange={e=>setQte(e.target.value)} type="number" className="flex-1 bg-zinc-800 p-3.5 rounded-xl border border-zinc-700 text-center font-black text-lg"/><select value={unite} onChange={e=>setUnite(e.target.value)} className="w-20 bg-zinc-800 p-3.5 rounded-xl border border-zinc-700 font-bold"><option>g</option><option>kg</option><option>ml</option><option>L</option><option>pcs</option></select></div><button onClick={addIng} className="w-full bg-orange-600 py-4 rounded-xl font-black">+ Ajouter {qte} {unite} {matieres.find((x:any)=>x.id===sel)?.nom||''}</button><div className="mt-3 space-y-1">{ings.map((ig:any,i:number)=><div key={i} className="flex justify-between bg-zinc-800 rounded-xl p-2.5 text-sm border border-zinc-700"><span className="font-bold">{i+1}. {ig.qte_necessaire} {ig.unite} - {ig._nom}</span><button onClick={()=>setIngs(ings.filter((_:any,idx:number)=>idx!==i))} className="text-red-400 font-black">X</button></div>)}</div></div></div><div className="p-4 border-t border-zinc-800 flex gap-2"><button onClick={onClose} className="flex-1 bg-zinc-800 py-3 rounded-xl">Annuler</button><button onClick={save} className="flex-1 bg-orange-600 py-3 rounded-xl font-bold">Sauver {ings.length}</button></div></div></div>
 }
 
-// USERS TAB - JDID KAMEL - FIHI AJOUTER / MODIFIER / SUPPRIMER
 function UsersTab(){
   const [users,setUsers]=useState<any[]>([]);
   const [show,setShow]=useState(false);
   const [edit,setEdit]=useState<any>(null);
   const load=useCallback(async()=>{
-    const {data,error}=await supabase.from('utilisateurs').select('*').order('created_at',{ascending:false});
-    console.log('USERS:',data,error);
+    const {data}=await supabase.from('utilisateurs').select('*').order('created_at',{ascending:false});
     setUsers(data||[]);
   },[]);
   useEffect(()=>{load();},[load]);
@@ -49,101 +47,27 @@ function UsersTab(){
       <h2 className="font-bold text-lg">Users {users.length}</h2>
       <button onClick={()=>{setEdit(null);setShow(true);}} className="bg-orange-600 px-4 py-2 rounded-xl font-bold flex items-center gap-2"><Plus className="w-4 h-4"/>+ User</button>
     </div>
-    {users.length===0 && <div className="text-zinc-500 text-sm bg-zinc-900 p-4 rounded-xl border border-zinc-800">Ma kayn 7ta user - warrek + User</div>}
     {users.map((u:any)=><div key={u.id} className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 flex justify-between items-center mb-2">
-      <div>
-        <div className="font-bold">{u.nom} <span className="text-xs bg-zinc-800 px-2 py-1 rounded-lg ml-2">{u.role}</span></div>
-        <div className="text-xs text-zinc-500 mt-1">ID: {u.identifiant} | Code: {u.code_acces}</div>
-      </div>
-      <div className="flex gap-1">
-        <button onClick={()=>{setEdit(u);setShow(true);}} className="p-2.5 bg-zinc-800 rounded-xl"><Edit3 className="w-4 h-4"/></button>
-        <button onClick={async()=>{if(confirm(`Supprimer ${u.nom}?`)){const {error}=await supabase.from('utilisateurs').delete().eq('id',u.id); if(error) alert(error.message); load();}}} className="p-2.5 bg-red-900 rounded-xl"><Trash2 className="w-4 h-4"/></button>
-      </div>
+      <div><div className="font-bold">{u.nom} <span className="text-xs bg-zinc-800 px-2 py-1 rounded-lg ml-2">{u.role}</span></div><div className="text-xs text-zinc-500 mt-1">ID: {u.identifiant} | Code: {u.code_acces}</div></div>
+      <div className="flex gap-1"><button onClick={()=>{setEdit(u);setShow(true);}} className="p-2.5 bg-zinc-800 rounded-xl"><Edit3 className="w-4 h-4"/></button><button onClick={async()=>{if(confirm(`Supprimer ${u.nom}?`)){await supabase.from('utilisateurs').delete().eq('id',u.id); load();}}} className="p-2.5 bg-red-900 rounded-xl"><Trash2 className="w-4 h-4"/></button></div>
     </div>)}
     {show&&<UserForm user={edit} onClose={()=>{setShow(false);setEdit(null);}} onSaved={load}/>}
   </div>
 }
 
 function UserForm({user,onClose,onSaved}:any){
-  const [nom,setNom]=useState(user?.nom||'');
-  const [ident,setIdent]=useState(user?.identifiant||'');
-  const [code,setCode]=useState(user?.code_acces||'');
-  const [role,setRole]=useState(user?.role||'serveur');
-  const [restId,setRestId]=useState(user?.restaurant_id||'');
-  const [loading,setLoading]=useState(false);
-
-  useEffect(()=>{
-    // Jib restaurant_id dyal marsilia ila ma kaynach
-    if(!restId){
-      supabase.from('restaurants').select('id').or('code.eq.marsilia,slug.eq.marsilia').limit(1).single().then(({data})=>{
-        if(data) setRestId(data.id);
-      });
-    }
-  },[]);
-
+  const [nom,setNom]=useState(user?.nom||''); const [ident,setIdent]=useState(user?.identifiant||''); const [code,setCode]=useState(user?.code_acces||''); const [role,setRole]=useState(user?.role||'serveur'); const [restId,setRestId]=useState(user?.restaurant_id||''); const [loading,setLoading]=useState(false);
+  useEffect(()=>{ if(!restId){ supabase.from('restaurants').select('id').limit(1).single().then(({data})=>{ if(data) setRestId(data.id); }); } },[]);
   const save=async()=>{
-    if(!nom||!ident||!code) return alert('3amar Nom + Identifiant + Code');
-    setLoading(true);
+    if(!nom||!ident||!code) return alert('3amar Nom + Identifiant + Code'); setLoading(true);
     try{
-      const payload:any={
-        nom: nom,
-        identifiant: ident.trim(),
-        code_acces: code.trim(),
-        role: role,
-        restaurant_id: restId || undefined
-      };
-      // Ila ma l9inach restaurant_id, n7awlo bla bih
-      if(!restId){
-        const {data:rest}=await supabase.from('restaurants').select('id').limit(1).single();
-        if(rest) payload.restaurant_id=rest.id;
-      }
-
-      let error;
-      if(user){
-        const res=await supabase.from('utilisateurs').update(payload).eq('id',user.id);
-        error=res.error;
-      }else{
-        const res=await supabase.from('utilisateurs').insert(payload);
-        error=res.error;
-      }
-      if(error) throw error;
-      onSaved(); onClose();
-      alert(user? '✅ T-modifa!' : '✅ Tzada user jdide!');
-    }catch(e:any){
-      alert('Erreur: '+e.message+'\n\nDir had SQL f Supabase: ALTER TABLE utilisateurs DISABLE ROW LEVEL SECURITY;');
-      console.error(e);
-    }
-    setLoading(false);
+      const payload:any={ nom, identifiant: ident.trim(), code_acces: code.trim(), role, restaurant_id: restId };
+      if(!restId){ const {data:rest}=await supabase.from('restaurants').select('id').limit(1).single(); if(rest) payload.restaurant_id=rest.id; }
+      let error; if(user){ const res=await supabase.from('utilisateurs').update(payload).eq('id',user.id); error=res.error; } else { const res=await supabase.from('utilisateurs').insert(payload); error=res.error; }
+      if(error) throw error; onSaved(); onClose();
+    }catch(e:any){ alert('Erreur: '+e.message); } setLoading(false);
   };
-
-  return <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-    <div className="bg-zinc-900 rounded-2xl w-full max-w-md border border-zinc-800 p-5 space-y-3">
-      <div className="flex justify-between items-center mb-2">
-        <h3 className="font-bold text-lg">{user? 'Modifier User' : 'Nouveau User'}</h3>
-        <button onClick={onClose}><X className="w-5 h-5"/></button>
-      </div>
-
-      <input value={nom} onChange={e=>setNom(e.target.value)} placeholder="Nom complet - ex: Said Cuisine" className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"/>
-      <input value={ident} onChange={e=>setIdent(e.target.value)} placeholder="Identifiant - ex: said" className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"/>
-      <input value={code} onChange={e=>setCode(e.target.value)} placeholder="Code d'accès - ex: 1234" className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"/>
-
-      <div>
-        <label className="text-xs text-zinc-400 mb-1 block">Role</label>
-        <select value={role} onChange={e=>setRole(e.target.value)} className="w-full bg-black p-3.5 rounded-xl border border-zinc-700">
-          <option value="admin">admin - Admin</option>
-          <option value="serveur">serveur - Serveur</option>
-          <option value="cuisine">cuisine - Cuisine</option>
-          <option value="caisse">caisse - Caisse</option>
-          <option value="plateforme">plateforme - Plateforme</option>
-        </select>
-      </div>
-
-      <div className="flex gap-2 pt-2">
-        <button onClick={onClose} className="flex-1 bg-zinc-800 py-3.5 rounded-xl font-bold">Annuler</button>
-        <button onClick={save} disabled={loading} className="flex-1 bg-orange-600 py-3.5 rounded-xl font-bold">{loading?'...': user? 'Modifier' : 'Ajouter'}</button>
-      </div>
-    </div>
-  </div>
+  return <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"><div className="bg-zinc-900 rounded-2xl w-full max-w-md border border-zinc-800 p-5 space-y-3"><div className="flex justify-between"><h3 className="font-bold">{user? 'Modifier' : 'Nouveau'} User</h3><button onClick={onClose}><X className="w-5 h-5"/></button></div><input value={nom} onChange={e=>setNom(e.target.value)} placeholder="Nom" className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"/><input value={ident} onChange={e=>setIdent(e.target.value)} placeholder="Identifiant" className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"/><input value={code} onChange={e=>setCode(e.target.value)} placeholder="Code" className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"/><select value={role} onChange={e=>setRole(e.target.value)} className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"><option value="admin">admin</option><option value="serveur">serveur</option><option value="cuisine">cuisine</option><option value="caisse">caisse</option></select><div className="flex gap-2"><button onClick={onClose} className="flex-1 bg-zinc-800 py-3.5 rounded-xl">Annuler</button><button onClick={save} className="flex-1 bg-orange-600 py-3.5 rounded-xl font-bold">{loading?'...':'Sauver'}</button></div></div></div>
 }
 
 function MatiereTab(){const [mats,setMats]=useState<any[]>([]);const [show,setShow]=useState(false);const [edit,setEdit]=useState<any>(null);const load=useCallback(async()=>{const {data}=await supabase.from('matiere_premiere').select('*').order('nom');setMats(data||[]);},[]);useEffect(()=>{load();},[load]);return <div><div className="flex justify-between mb-2"><h2 className="font-bold">Matiere {mats.length}</h2><button onClick={()=>{setEdit(null);setShow(true);}} className="bg-orange-600 px-3 py-2 rounded-xl">+ Matiere</button></div>{mats.map((m:any)=><div key={m.id} className="bg-zinc-900 p-3 rounded-xl border border-zinc-800 flex justify-between mb-2"><div><div className="font-bold">{m.nom}</div><div className="text-xs text-zinc-500">{m.quantite} {m.unite}</div></div><div className="flex gap-1"><button onClick={()=>{setEdit(m);setShow(true);}} className="p-2 bg-zinc-800 rounded-lg"><Edit3 className="w-4 h-4"/></button><button onClick={async()=>{if(confirm('Supprimer?')){await supabase.from('matiere_premiere').delete().eq('id',m.id);load();}}} className="p-2 bg-red-900 rounded-lg"><Trash2 className="w-4 h-4"/></button></div></div>)}{show&&<MatiereForm mat={edit} onClose={()=>{setShow(false);setEdit(null);}} onSaved={load}/>}</div>}
@@ -151,4 +75,46 @@ function MatiereForm({mat,onClose,onSaved}:any){const [nom,setNom]=useState(mat?
 function StockTab(){const [mats,setMats]=useState<any[]>([]);useEffect(()=>{supabase.from('matiere_premiere').select('*').order('nom').then(({data})=>setMats(data||[]));},[]);return <div>{mats.map((m:any)=><div key={m.id} className="p-3 rounded-xl border bg-zinc-900 border-zinc-800 flex justify-between mb-2"><span>{m.nom}</span><span className="font-bold">{m.quantite} {m.unite}</span></div>)}</div>}
 function CategoriesTab(){const [cats,setCats]=useState<any[]>([]);const [show,setShow]=useState(false);const [edit,setEdit]=useState<any>(null);const load=useCallback(async()=>{const {data}=await supabase.from('categories').select('*').order('ordre');setCats(data||[]);},[]);useEffect(()=>{load();},[load]);return <div><div className="flex justify-between mb-2"><h2 className="font-bold">Categories</h2><button onClick={()=>{setEdit(null);setShow(true);}} className="bg-orange-600 px-3 py-2 rounded-xl">+ Cat</button></div>{cats.map((c:any)=><div key={c.id} className="bg-zinc-900 p-3 rounded-xl border border-zinc-800 flex justify-between mb-2"><div><div className="font-bold">{c.label}</div><div className="text-xs text-zinc-500">{c.nom}</div></div><div className="flex gap-1"><button onClick={()=>{setEdit(c);setShow(true);}} className="p-2 bg-zinc-800 rounded-lg"><Edit3 className="w-4 h-4"/></button><button onClick={async()=>{if(confirm('Supprimer?')){await supabase.from('categories').delete().eq('id',c.id);load();}}} className="p-2 bg-red-900 rounded-lg"><Trash2 className="w-4 h-4"/></button></div></div>)}{show&&<CatForm cat={edit} onClose={()=>{setShow(false);setEdit(null);}} onSaved={load}/>}</div>}
 function CatForm({cat,onClose,onSaved}:any){const [nom,setNom]=useState(cat?.nom||'');const [label,setLabel]=useState(cat?.label||'');const save=async()=>{if(!nom||!label) return alert('Nom+Label');const p={nom:nom.toLowerCase().replace(/\s/g,'_'),label,ordre:1};if(cat) await supabase.from('categories').update(p).eq('id',cat.id);else await supabase.from('categories').insert(p);onSaved();onClose();};return <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"><div className="bg-zinc-900 rounded-2xl w-full max-w-md border border-zinc-800 p-5 space-y-3"><input value={label} onChange={e=>{setLabel(e.target.value);if(!cat) setNom(e.target.value.toLowerCase().replace(/\s/g,'_'));}} placeholder="Label" className="w-full bg-black p-3 rounded-xl border border-zinc-700"/><input value={nom} onChange={e=>setNom(e.target.value)} placeholder="nom" className="w-full bg-black p-3 rounded-xl border border-zinc-700 text-xs"/><div className="flex gap-2"><button onClick={onClose} className="flex-1 bg-zinc-800 py-3 rounded-xl">Annuler</button><button onClick={save} className="flex-1 bg-orange-600 py-3 rounded-xl font-bold">Sauver</button></div></div></div>}
-function RapportsTab(){const [cs,setCs]=useState<any[]>([]);const [date,setDate]=useState(new Date().toISOString().split('T')[0]);const load=useCallback(async()=>{const {data}=await supabase.from('commandes').select('*').eq('statut','paye').gte('created_at',`${date}T00:00:00`).lte('created_at',`${date}T23:59:59`).order('created_at',{ascending:false});setCs(data||[]);},[date]);useEffect(()=>{load();},[load]);const total=cs.reduce((s,c)=>s+Number(c.total_final??c.total??0),0);return <div><input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-zinc-900 p-3 rounded-xl border border-zinc-800 mb-2"/><div className="bg-zinc-900 p-3 rounded-xl border border-zinc-800 text-center font-bold mb-2">{total} DH - {cs.length} cmd</div></div>}
+
+// ========== RAPPORTS TAB JDID - FIHA PDF + KHWI + DETAILS ==========
+function RapportsTab(){
+  const [date,setDate]=useState(new Date().toISOString().split('T')[0]);
+  const [cmds,setCmds]=useState<any[]>([]);
+  const [itemsMap,setItemsMap]=useState<any>({});
+  const [tableMap,setTableMap]=useState<any>({});
+  const [loading,setLoading]=useState(true);
+
+  const load=useCallback(async()=>{
+    setLoading(true);
+    const start=new Date(date); start.setHours(0,0,0,0);
+    const end=new Date(date); end.setHours(23,59,59,999);
+    let {data}=await supabase.from('commandes').select('*').eq('statut','paye').gte('paye_at',start.toISOString()).lte('paye_at',end.toISOString()).order('paye_at',{ascending:true});
+    if(!data||data.length===0){
+      const {data:d2}=await supabase.from('commandes').select('*').eq('statut','paye').gte('created_at',start.toISOString()).lte('created_at',end.toISOString()).order('created_at',{ascending:true});
+      data=d2||[];
+    }
+    let iMap:any={}; let tMap:any={};
+    if(data&&data.length){
+      const ids=data.map((c:any)=>c.id); const tableIds=data.map((c:any)=>c.table_id).filter(Boolean);
+      const [{data:items},{data:tables}]=await Promise.all([
+        supabase.from('commande_items').select('*').in('commande_id',ids),
+        tableIds.length? supabase.from('tables').select('*').in('id',tableIds) : Promise.resolve({data:[]} as any)
+      ]);
+      (items||[]).forEach((it:any)=>{ (iMap[it.commande_id]=iMap[it.commande_id]||[]).push(it); });
+      (tables||[]).forEach((t:any)=>{ tMap[t.id]=t; });
+    }
+    setItemsMap(iMap); setTableMap(tMap); setCmds(data||[]); setLoading(false);
+  },[date]);
+  useEffect(()=>{load();},[load]);
+
+  const getTableNum=(c:any)=>c.table_numero||c.table_num||tableMap[c.table_id]?.numero||tableMap[c.table_id]?.nom||'?';
+  const groups={
+    espece: cmds.filter(c=> (c.payment_method||'espece')==='espece'),
+    tpe: cmds.filter(c=> c.payment_method==='tpe'),
+    cheque: cmds.filter(c=> c.payment_method==='cheque'),
+    offert: cmds.filter(c=> c.payment_method==='offert'),
+    remise: cmds.filter(c=> c.payment_method==='remise'),
+  };
+  const sum=(arr:any[])=>arr.reduce((s,c)=>s+Number(c.total_final??c.total??0),0);
+  const sumReel=(arr:any[])=>arr.reduce((s,c)=>s+Number(c.total??0),0);
+  const total
