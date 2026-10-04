@@ -115,7 +115,7 @@ return(<div className="p-3">
 {k:'espece',t:'ESPECE ('+groups.espece.length+') - '+sum(groups.espece).toFixed(0)+' DH',d:groups.espece,c:'border-green-600'},
 {k:'tpe',t:'TPE ('+groups.tpe.length+') - '+sum(groups.tpe).toFixed(0)+' DH',d:groups.tpe,c:'border-blue-600'},
 {k:'cheque',t:'CHEQUE ('+groups.cheque.length+') - '+sum(groups.cheque).toFixed(0)+' DH',d:groups.cheque,c:'border-purple-600'},
-{k:'remise',t:'REMISE ('+groups.remise.length+') - '+sum(groups.remise).toFixed(0)+' DH (-'+totalRemise.toFixed(0)+' DH)',d:groups.remise,c:'border-yellow-500'},
+{k:'remise',t:'REMISE ('+groups.remise.length+') - '+sum(groups.remise).toFixed(0)+' DH',d:groups.remise,c:'border-yellow-500'},
 {k:'offert',t:'OFFERT ('+groups.offert.length+') - '+sumReel(groups.offert).toFixed(0)+' DH perdu',d:groups.offert,c:'border-orange-600'},
 ].map(g=> g.d.length>0 && (
 <div key={g.k} className={'border-l-4 '+g.c+' pl-2 mb-4'}>
@@ -123,8 +123,7 @@ return(<div className="p-3">
 {g.d.map(c=>{const its=itemsMap[c.id]||[];const tableNum=c.table_numero || (c.table_id? tablesMap[c.table_id]?.numero : null) || '?';
 return(<div key={c.id} className="bg-[#1A1A1A] border border-zinc-800 rounded-xl p-3 mb-2">
 <div className="flex justify-between font-bold"><span>Table {tableNum} - {c.serveur_nom||'?'}</span><span className="text-orange-400">{Number(c.total_final||c.total||0).toFixed(0)} DH</span></div>
-<div className="text-[11px] text-zinc-500">{new Date(c.paye_at||c.created_at).toLocaleTimeString()} - {c.payment_method} {c.remise_percent? '- Remise '+c.remise_percent+'%':''}</div>
-<div className="mt-2 bg-black/50 rounded-xl p-2">{its.map(it=>(<div key={it.id} className="flex justify-between py-1 text-sm border-b border-zinc-800 last:border-0"><span>{it.qte||1}x {it.menu_nom||'Plat'}</span><span>{(Number(it.qte||1)*Number(it.prix||0)).toFixed(0)} DH</span></div>))}</div></div>);})}
+<div className="text-[11px] text-zinc-500">{new Date(c.paye_at||c.created_at).toLocaleTimeString()} - {c.payment_method}</div>
+<div className="mt-2 bg-black/50 rounded-xl p-2">{its.map(it=>(<div key={it.id} className="flex justify-between py-1 text-sm"><span>{it.qte||1}x {it.menu_nom}</span><span>{(Number(it.qte||1)*Number(it.prix||0)).toFixed(0)} DH</span></div>))}</div></div>);})}
 </div>))}
-</div>);}
-}
+</div>);}}
