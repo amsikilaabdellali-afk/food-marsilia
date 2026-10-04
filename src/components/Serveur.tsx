@@ -85,16 +85,9 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
       }
       const need = Number(r.qte_necessaire?? 0) * addQte;
       const rest = stock - inCart;
-      if (addQte === 0) {
-        if (rest < 0.001) {
-          const mp: any = matieres.find((x: any) => x.id === r.matiere_id);
-          return { nom: mp?.nom, restant: rest };
-        }
-      } else {
-        if (rest < need - 0.001) {
-          const mp: any = matieres.find((x: any) => x.id === r.matiere_id);
-          return { nom: mp?.nom, restant: rest };
-        }
+      if (rest < need - 0.001) {
+        const mp: any = matieres.find((x: any) => x.id === r.matiere_id);
+        return { nom: mp?.nom, restant: rest };
       }
     }
     return null;
@@ -128,35 +121,36 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
       if(cmdErr){ alert('Erreur commande: '+cmdErr.message); setSending(false); return; }
 
       if (cmd) {
-        // FIX NIHAYI - ghir les colonnes li kaynin 100% f Supabase dyalk
+        // VERSION ULTRA SIMPLE - bla quantite bla plat bla prix_unitaire
         const items = cartItems.map((x: any) => {
           const mm = menus.find((m) => m.id === x[0])!;
           return {
             commande_id: cmd.id,
             menu_id: x[0],
-            menu_nom: mm.nom,
-            qte: x[1],
-            prix: Number(mm.prix)
+            qte: Number(x[1]),
+            prix: Number(mm.prix),
+            menu_nom: mm.nom
           };
         });
 
+        console.log('Kan-sejjel items:', items);
         const { error: itemsErr } = await supabase.from('commande_items').insert(items as any);
+
         if(itemsErr){
-          console.log('Erreur items:', itemsErr);
-          // Ila ba9i kayn erreur - n-jrbo b nom bla menu_nom
-          const items2 = cartItems.map((x: any) => {
+          console.log('Erreur avec menu_nom:', itemsErr);
+          // Ila menu_nom ma kaynch - n-jrbo b ghir qte + prix
+          const itemsMin = cartItems.map((x: any) => {
             const mm = menus.find((m) => m.id === x[0])!;
             return {
               commande_id: cmd.id,
               menu_id: x[0],
-              nom: mm.nom,
-              qte: x[1],
+              qte: Number(x[1]),
               prix: Number(mm.prix)
             };
           });
-          const { error: err2 } = await supabase.from('commande_items').insert(items2 as any);
-          if(err2){
-            alert('Items erreur: '+err2.message+' - Sir Supabase Table Editor commande_items w chouf smiyat colonnes');
+          const { error: errMin } = await supabase.from('commande_items').insert(itemsMin as any);
+          if(errMin){
+            alert('Erreur finale items: '+errMin.message);
             setSending(false);
             return;
           }
@@ -164,6 +158,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
 
         await supabase.from('tables').update({ statut: 'en_cours' }).eq('id', table.id);
 
+        // Na9as stock - hadchi ba9i khdam!
         for (let i = 0; i < cartItems.length; i++) {
           const menuId = cartItems[i][0] as string;
           const qte = cartItems[i][1] as number;
@@ -177,7 +172,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
           }
         }
       }
-    } catch (e) { console.error(e); }
+    } catch (e:any) { console.error(e); alert('Erreur: '+e.message); }
     setSending(false);
     onBack();
   };
@@ -199,7 +194,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
                   <div key={m.id} className={`bg-[#1A1A1A] rounded-2xl overflow-hidden border ${isRupt? 'border-red-700 opacity-60' : inCart? 'border-[#FF6B00]' : 'border-gray-800'}`}>
                     <div className="relative h-24 bg-gray-900">{m.image_url? <img src={m.image_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon className="w-8 h-8 text-gray-700" /></div>}{inCart > 0 && <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-[#FF6B00] text-white text-xs font-bold flex items-center justify-center">{inCart}</div>}</div>
                     <div className="p-2.5"><h4 className="text-white text-sm font-semibold">{m.nom}</h4><div className="flex items-center justify-between mt-1.5"><span className="text-[#FF6B00] font-bold text-sm">{Number(m.prix).toFixed(0)} DH</span>
-                      {isRupt? <span className="text-red-400 text-[9px] font-bold">RUPTURE {rupt?.restant.toFixed(1)}</span> : inCart? <div className="flex items-center gap-1"><button onClick={() => remove(m.id)} className="w-6 h-6 rounded-lg bg-gray-800 text-white flex items-center justify-center"><Minus className="w-3 h-3" /></button><span className="text-white text-sm w-5 text-center">{inCart}</span><button onClick={() => add(m.id)} className="w-6 h-6 rounded-lg bg-[#FF6B00] text-white flex items-center justify-center"><Plus className="w-3 h-3" /></button></div> : <button onClick={() => add(m.id)} className="w-7 h-7 rounded-lg bg-[#FF6B00] text-white flex items-center justify-center"><Plus className="w-4 h-4" /></button>}
+                      {isRupt? <span className="text-red-400 text-[9px] font-bold">RUPTURE</span> : inCart? <div className="flex items-center gap-1"><button onClick={() => remove(m.id)} className="w-6 h-6 rounded-lg bg-gray-800 text-white flex items-center justify-center"><Minus className="w-3 h-3" /></button><span className="text-white text-sm w-5 text-center">{inCart}</span><button onClick={() => add(m.id)} className="w-6 h-6 rounded-lg bg-[#FF6B00] text-white flex items-center justify-center"><Plus className="w-3 h-3" /></button></div> : <button onClick={() => add(m.id)} className="w-7 h-7 rounded-lg bg-[#FF6B00] text-white flex items-center justify-center"><Plus className="w-4 h-4" /></button>}
                     </div></div>
                   </div>
                 );
