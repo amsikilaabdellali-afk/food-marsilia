@@ -1,8 +1,6 @@
 // @ts-nocheck
 import { useEffect, useState } from 'react';
 import Login from '@/components/Login';
-import Admin from '@/components/admin/Admin';
-import { supabase } from '@/lib/supabase';
 
 export default function App(){
   const [profil,setProfil]=useState<any>(null);
@@ -17,7 +15,6 @@ export default function App(){
   const onLogin = (p:any)=>{
     localStorage.setItem('marsilia_profil', JSON.stringify(p));
     setProfil(p);
-    window.location.reload();
   };
   const onLogout = ()=>{
     localStorage.clear();
@@ -28,15 +25,27 @@ export default function App(){
   if(!profil) return <Login onLogin={onLogin} />;
 
   const role = String(profil.user.role||'').toLowerCase();
+  const nom = profil.user.nom;
+  const ident = profil.user.identifiant;
 
-  if(role.includes('caiss')){
-    return <div className="min-h-screen bg-black text-white"><div className="bg-yellow-500 text-black text-center py-2 font-black">CAISSE: {profil.user.nom} <button onClick={onLogout} className="ml-4 bg-black text-white px-3 py-1 rounded">Logout</button></div><div className="p-6 text-xl">✅ DABA KHADAM - CAISSE VIEW</div></div>;
-  }
-  if(role.includes('serveur')){
-    return <div className="min-h-screen bg-black text-white"><div className="bg-blue-600 text-center py-2">SERVEUR: {profil.user.nom} <button onClick={onLogout} className="ml-2 underline">Logout</button></div></div>;
-  }
-  if(role.includes('cuisin')){
-    return <div className="min-h-screen bg-black text-white"><div className="bg-green-600 text-center py-2">CUISINE: {profil.user.nom} <button onClick={onLogout} className="ml-2 underline">Logout</button></div></div>;
-  }
-  return <div><div className="bg-red-600 text-white text-center py-1">ADMIN: {profil.user.nom} <button onClick={onLogout} className="ml-2 bg-black px-2 rounded">Logout</button></div><Admin /></div>;
+  return (
+    <div className="min-h-screen bg-black text-white">
+      <div className="bg-orange-600 text-white text-center py-3 font-black">
+        ROLE={role} | {nom} ({ident}) 
+        <button onClick={onLogout} className="ml-4 bg-black text-white px-3 py-1 rounded text-xs">Logout</button>
+      </div>
+      
+      <div className="p-6">
+        {role.includes('caiss') && (
+          <div className="bg-yellow-500 text-black p-6 rounded-2xl font-black text-xl">
+            ✅ CAISSE KHADAM! Iman - c1
+            <div className="text-sm font-normal mt-2">Daba 3rafna mochkil t-7al! Ghadi n-raj3o CaisseView s7i7.</div>
+          </div>
+        )}
+        {role.includes('serveur') && <div className="bg-blue-600 p-6 rounded-2xl font-black">SERVEUR: {nom}</div>}
+        {role.includes('cuisin') && <div className="bg-green-600 p-6 rounded-2xl font-black">CUISINE: {nom}</div>}
+        {role.includes('admin') && <div className="bg-red-600 p-6 rounded-2xl font-black">ADMIN: {nom} - Ila `c1` kay-ban hna, mazal mochkil f DB - sift liya screenshot</div>}
+      </div>
+    </div>
+  );
 }
