@@ -1,9 +1,9 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
-import { ChefHat, Clock, CheckCircle2, Flame } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { ChefHat, Clock, CheckCircle2, Flame, LogOut } from 'lucide-react';
 
-export default function Cuisine() {
+export default function Cuisine({ profil, onLogout }: any) {
   const [commandes, setCommandes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(Date.now());
@@ -31,9 +31,9 @@ export default function Cuisine() {
     const tableMap: any = {};
     tables.forEach((t: any) => { tableMap[t.id] = t; });
     const result = cmds.map((c: any) => ({
-     ...c,
+    ...c,
       items: itemsMap[c.id] || [],
-      table_numero: c.table_id? (tableMap[c.table_id]?.numero || null) : null,
+      table_numero: c.table_numero || (c.table_id? (tableMap[c.table_id]?.numero || null) : null),
     }));
     setCommandes(result);
     setLoading(false);
@@ -67,11 +67,12 @@ export default function Cuisine() {
       <div className="sticky top-0 z-30 bg-[#0A0A0A]/95 backdrop-blur border-b border-gray-800 px-4 py-3">
         <div className="flex items-center gap-3 max-w-7xl mx-auto">
           <ChefHat className="w-6 h-6 text-[#FF6B00]" />
-          <h2 className="text-white font-bold">Cuisine</h2>
-          <div className="ml-auto flex gap-2 text-sm">
+          <h2 className="text-white font-bold">Cuisine {profil?.user?.nom? `- ${profil.user.nom}`:''}</h2>
+          <div className="ml-auto flex gap-2 items-center text-sm">
             <span className="px-3 py-1 rounded-lg bg-gray-800 text-gray-300">{enAttente.length} Attente</span>
             <span className="px-3 py-1 rounded-lg bg-blue-900 text-blue-300">{enPrep.length} Prep</span>
             <span className="px-3 py-1 rounded-lg bg-green-900 text-green-300">{pret.length} Pret</span>
+            <button onClick={onLogout} className="ml-2 bg-white text-black px-3 py-1.5 rounded-lg font-bold flex items-center gap-1"><LogOut className="w-4 h-4"/>Logout</button>
           </div>
         </div>
       </div>
@@ -83,7 +84,7 @@ export default function Cuisine() {
               {enAttente.map((c) => (
                 <div key={c.id} className="bg-[#1A1A1A] rounded-2xl p-4 border border-gray-800">
                   <div className="flex justify-between mb-2"><div><div className="text-white font-bold">Table {c.table_numero || 'N/A'}</div><div className="text-gray-500 text-xs">{c.serveur_nom}</div></div><div className="text-gray-400 font-mono text-sm">{Math.floor((now - new Date(c.created_at).getTime())/1000/60)}m</div></div>
-                  <div className="space-y-1 mb-3">{c.items.map((it: any) => (<div key={it.id} className="flex gap-2 text-sm"><span className="bg-[#FF6B00]/20 text-[#FF6B00] font-bold w-7 h-7 rounded-lg flex items-center justify-center text-xs">{it.qte}</span><span className="text-gray-200">{it.menu_nom}</span></div>))}</div>
+                  <div className="space-y-1 mb-3">{c.items.map((it: any) => (<div key={it.id} className="flex gap-2 text-sm"><span className="bg-[#FF6B00]/20 text-[#FF6B00] font-bold w-7 h-7 rounded-lg flex items-center justify-center text-xs">{it.qte || it.quantite}</span><span className="text-gray-200">{it.menu_nom || it.nom}</span></div>))}</div>
                   <button onClick={() => updateStatus(c, 'en_preparation')} className="w-full flex justify-center gap-2 bg-blue-600 text-white py-2.5 rounded-xl"><Flame className="w-4 h-4" />Commencer</button>
                 </div>
               ))}
@@ -96,7 +97,7 @@ export default function Cuisine() {
               {enPrep.map((c) => (
                 <div key={c.id} className="bg-[#1A1A1A] rounded-2xl p-4 border border-gray-800">
                   <div className="flex justify-between mb-2"><div><div className="text-white font-bold">Table {c.table_numero}</div><div className="text-gray-500 text-xs">{c.serveur_nom}</div></div><div className="text-gray-400 font-mono text-sm">{Math.floor((now - new Date(c.created_at).getTime())/1000/60)}m</div></div>
-                  <div className="space-y-1 mb-3">{c.items.map((it: any) => (<div key={it.id} className="flex gap-2 text-sm"><span className="bg-[#FF6B00]/20 text-[#FF6B00] font-bold w-7 h-7 rounded-lg flex items-center justify-center text-xs">{it.qte}</span><span className="text-gray-200">{it.menu_nom}</span></div>))}</div>
+                  <div className="space-y-1 mb-3">{c.items.map((it: any) => (<div key={it.id} className="flex gap-2 text-sm"><span className="bg-[#FF6B00]/20 text-[#FF6B00] font-bold w-7 h-7 rounded-lg flex items-center justify-center text-xs">{it.qte || it.quantite}</span><span className="text-gray-200">{it.menu_nom || it.nom}</span></div>))}</div>
                   <button onClick={() => updateStatus(c, 'pret')} className="w-full flex justify-center gap-2 bg-green-600 text-white py-2.5 rounded-xl"><CheckCircle2 className="w-4 h-4" />Pret!</button>
                 </div>
               ))}
@@ -109,7 +110,7 @@ export default function Cuisine() {
               {pret.map((c) => (
                 <div key={c.id} className="bg-[#1A1A1A] rounded-2xl p-4 border border-green-600">
                   <div className="flex justify-between mb-2"><div><div className="text-white font-bold">Table {c.table_numero}</div><div className="text-gray-500 text-xs">{c.serveur_nom}</div></div></div>
-                  <div className="space-y-1 mb-2">{c.items.map((it: any) => (<div key={it.id} className="flex gap-2 text-sm"><span className="bg-[#FF6B00]/20 text-[#FF6B00] font-bold w-7 h-7 rounded-lg flex items-center justify-center text-xs">{it.qte}</span><span className="text-gray-200">{it.menu_nom}</span></div>))}</div>
+                  <div className="space-y-1 mb-2">{c.items.map((it: any) => (<div key={it.id} className="flex gap-2 text-sm"><span className="bg-[#FF6B00]/20 text-[#FF6B00] font-bold w-7 h-7 rounded-lg flex items-center justify-center text-xs">{it.qte || it.quantite}</span><span className="text-gray-200">{it.menu_nom || it.nom}</span></div>))}</div>
                   <div className="text-center text-green-400 text-sm">En attente de service</div>
                 </div>
               ))}
@@ -120,4 +121,4 @@ export default function Cuisine() {
       </div>
     </div>
   );
-}
+                                                                                                                                                                                                                                                                             }
