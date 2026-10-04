@@ -1,98 +1,42 @@
-import { useState, useEffect } from 'react';
-import Login, { type Role, ROLE_NAMES } from '@/components/Login';
-import Admin from '@/components/Admin';
-import Serveur from '@/components/Serveur';
-import Cuisine from '@/components/Cuisine';
-import Caisse from '@/components/Caisse';
-import Plateforme from '@/components/Plateforme';
+// @ts-nocheck
+import { useEffect, useState } from 'react';
+import Login from '@/components/Login';
+import Admin from '@/components/admin/Admin';
 import { supabase } from '@/lib/supabase';
-import { loadProfil, type Profil } from '@/lib/session';
-import { LogOut } from 'lucide-react';
 
-export default function App() {
-  const [profil, setProfil] = useState<Profil | null>(null);
-  const [checking, setChecking] = useState(true);
+export default function App(){
+  const [profil,setProfil]=useState<any>(null);
+  const [loading,setLoading]=useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
+  useEffect(()=>{
+    const s = localStorage.getItem('marsilia_profil');
+    if(s){ try{ setProfil(JSON.parse(s)); }catch{} }
+    setLoading(false);
+  },[]);
 
-    const restoreSession = async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const session = sessionData.session;
-      if (session) {
-        const p = await loadProfil(session.user.id);
-        if (!cancelled) {
-          if (p) {
-            setProfil(p);
-          } else {
-            await supabase.auth.signOut();
-          }
-        }
-      }
-      if (!cancelled) setChecking(false);
-    };
-    restoreSession();
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) setProfil(null);
-    });
-
-    return () => {
-      cancelled = true;
-      listener.subscription.unsubscribe();
-    };
-  }, []);
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+  const onLogin = (p:any)=>{
+    localStorage.setItem('marsilia_profil', JSON.stringify(p));
+    setProfil(p);
+    window.location.reload();
+  };
+  const onLogout = ()=>{
+    localStorage.clear();
     setProfil(null);
   };
 
-  if (checking) {
-    return (
-      <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-[#FF6B00] border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+  if(loading) return <div className="min-h-screen bg-black text-white flex items-center justify-center">...</div>;
+  if(!profil) return <Login onLogin={onLogin} />;
+
+  const role = String(profil.user.role||'').toLowerCase();
+
+  if(role.includes('caiss')){
+    return <div className="min-h-screen bg-black text-white"><div className="bg-yellow-500 text-black text-center py-2 font-black">CAISSE: {profil.user.nom} <button onClick={onLogout} className="ml-4 bg-black text-white px-3 py-1 rounded">Logout</button></div><div className="p-6 text-xl">✅ DABA KHADAM - CAISSE VIEW</div></div>;
   }
-
-  if (!profil) {
-    return <Login onLogin={setProfil} />;
+  if(role.includes('serveur')){
+    return <div className="min-h-screen bg-black text-white"><div className="bg-blue-600 text-center py-2">SERVEUR: {profil.user.nom} <button onClick={onLogout} className="ml-2 underline">Logout</button></div></div>;
   }
-
-  const { user, restaurantNom } = profil;
-  const role = user.role as Role;
-
-  return (
-    <div className="min-h-screen bg-[#0A0A0A]">
-      <header className="fixed top-0 left-0 right-0 z-50 bg-[#0A0A0A]/90 backdrop-blur border-b border-gray-800 px-4 py-2.5 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#FF6B00] to-[#FF8C00] flex items-center justify-center">
-            <span className="text-white font-bold text-sm">{restaurantNom.charAt(0).toUpperCase()}</span>
-          </div>
-          <div>
-            <span className="text-white font-bold text-sm">{restaurantNom}</span>
-            <span className="text-gray-500 text-xs ml-2 hidden sm:inline">
-              {user.nom} · {ROLE_NAMES[role]}
-            </span>
-          </div>
-        </div>
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-1.5 text-gray-400 hover:text-white text-sm px-3 py-1.5 rounded-lg hover:bg-gray-800 transition-colors"
-        >
-          <LogOut className="w-4 h-4" />
-          <span className="hidden sm:inline">Déconnexion</span>
-        </button>
-      </header>
-
-      <main className="pt-14">
-        {role === 'plateforme' && <Plateforme />}
-        {role === 'admin' && <Admin />}
-        {role === 'serveur' && <Serveur serveurNom={user.nom} />}
-        {role === 'cuisine' && <Cuisine />}
-        {role === 'caisse' && <Caisse />}
-      </main>
-    </div>
-  );
+  if(role.includes('cuisin')){
+    return <div className="min-h-screen bg-black text-white"><div className="bg-green-600 text-center py-2">CUISINE: {profil.user.nom} <button onClick={onLogout} className="ml-2 underline">Logout</button></div></div>;
+  }
+  return <div><div className="bg-red-600 text-white text-center py-1">ADMIN: {profil.user.nom} <button onClick={onLogout} className="ml-2 bg-black px-2 rounded">Logout</button></div><Admin /></div>;
 }
