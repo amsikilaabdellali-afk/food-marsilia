@@ -1,16 +1,17 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
-import { ArrowLeft, Plus, Minus, Send, Image as ImageIcon } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { ArrowLeft, Plus, Minus, Send, Image as ImageIcon, LogOut } from 'lucide-react';
 
-export default function Serveur({ serveurNom }: { serveurNom: string }) {
+export default function Serveur({ profil, onLogout, serveurNom }: any) {
+  const name = profil?.user?.nom || serveurNom || 'Serveur';
   const [view, setView] = useState<'tables' | 'commande'>('tables');
   const [selectedTable, setSelectedTable] = useState<any>(null);
-  if (view === 'commande' && selectedTable) return <CommandeView table={selectedTable} serveurNom={serveurNom} onBack={() => setView('tables')} />;
-  return <TablesView onSelectTable={(t) => { setSelectedTable(t); setView('commande'); }} />;
+  if (view === 'commande' && selectedTable) return <CommandeView table={selectedTable} serveurNom={name} onBack={() => setView('tables')} />;
+  return <TablesView onSelectTable={(t) => { setSelectedTable(t); setView('commande'); }} profil={profil} onLogout={onLogout} />;
 }
 
-function TablesView({ onSelectTable }: { onSelectTable: (t: any) => void }) {
+function TablesView({ onSelectTable, profil, onLogout }: any) {
   const [tables, setTables] = useState<any[]>([]);
   const [commandes, setCommandes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,37 +33,40 @@ function TablesView({ onSelectTable }: { onSelectTable: (t: any) => void }) {
   const rdc = tables.filter((t:any)=>t.etage==='RDC'||!t.etage);
   const premier = tables.filter((t:any)=>t.etage==='1er');
   return (
-    <div className="p-4 max-w-4xl mx-auto">
-      <h2 className="text-xl font-bold text-white mb-4">Tables - {tables.length}</h2>
-
-      {rdc.length>0 && (
-        <>
-          <div className="flex items-center gap-2 mb-3"><div className="w-2 h-2 bg-green-500 rounded-full"></div><h3 className="font-black text-green-400 text-sm">RDC - {rdc.length} tables</h3></div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-8">
-            {rdc.map((t) => {
-              const s = getStatus(t.id);
-              return <button key={t.id} onClick={() => onSelectTable(t)} className={`aspect-square rounded-2xl flex flex-col items-center justify-center border-2 ${s==='pret'?'bg-green-900/40 border-green-500':s==='en_cours'?'bg-blue-950/40 border-blue-600':'bg-[#1A1A1A] border-gray-800'}`}><div className="text-3xl font-bold text-white">{t.numero}</div><div className="text-[10px] text-zinc-500">RDC</div><div className="text-xs mt-1 text-gray-500">{s}</div></button>
-            })}
-          </div>
-        </>
-      )}
-
-      {premier.length>0 && (
-        <>
-          <div className="flex items-center gap-2 mb-3"><div className="w-2 h-2 bg-blue-500 rounded-full"></div><h3 className="font-black text-blue-400 text-sm">1er ÉTAGE - {premier.length} tables</h3></div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {premier.map((t) => {
-              const s = getStatus(t.id);
-              return <button key={t.id} onClick={() => onSelectTable(t)} className={`aspect-square rounded-2xl flex flex-col items-center justify-center border-2 ${s==='pret'?'bg-green-900/40 border-green-500':s==='en_cours'?'bg-blue-900/40 border-blue-500':'bg-[#1A1A1A] border-blue-900/30'}`}><div className="text-3xl font-bold text-white">{t.numero}</div><div className="text-[10px] text-blue-400">1er</div><div className="text-xs mt-1 text-gray-500">{s}</div></button>
-            })}
-          </div>
-        </>
-      )}
-
-      {tables.length===0 && <div className="text-center text-zinc-500 py-10">Ma kayn 7ta table - zidhom f Admin → Tables</div>}
+    <div className="min-h-screen bg-black text-white">
+      <div className="bg-yellow-500 text-black p-3 flex justify-between items-center sticky top-0 z-20">
+        <div className="font-black">SERVEUR: {profil?.user?.nom} ({profil?.user?.identifiant})</div>
+        <button onClick={onLogout} className="bg-black text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1"><LogOut className="w-4 h-4"/>Logout</button>
+      </div>
+      <div className="p-4 max-w-4xl mx-auto">
+        <h2 className="text-xl font-bold text-white mb-4">Tables - {tables.length}</h2>
+        {rdc.length>0 && (
+          <>
+            <div className="flex items-center gap-2 mb-3"><div className="w-2 h-2 bg-green-500 rounded-full"></div><h3 className="font-black text-green-400 text-sm">RDC - {rdc.length} tables</h3></div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-8">
+              {rdc.map((t) => {
+                const s = getStatus(t.id);
+                return <button key={t.id} onClick={() => onSelectTable(t)} className={`aspect-square rounded-2xl flex flex-col items-center justify-center border-2 ${s==='pret'?'bg-green-900/40 border-green-500':s==='en_cours'?'bg-blue-950/40 border-blue-600':'bg-[#1A1A1A] border-gray-800'}`}><div className="text-3xl font-bold text-white">{t.numero}</div><div className="text-[10px] text-zinc-500">RDC</div><div className="text-xs mt-1 text-gray-500">{s}</div></button>
+              })}
+            </div>
+          </>
+        )}
+        {premier.length>0 && (
+          <>
+            <div className="flex items-center gap-2 mb-3"><div className="w-2 h-2 bg-blue-500 rounded-full"></div><h3 className="font-black text-blue-400 text-sm">1er ÉTAGE - {premier.length} tables</h3></div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {premier.map((t) => {
+                const s = getStatus(t.id);
+                return <button key={t.id} onClick={() => onSelectTable(t)} className={`aspect-square rounded-2xl flex flex-col items-center justify-center border-2 ${s==='pret'?'bg-green-900/40 border-green-500':s==='en_cours'?'bg-blue-900/40 border-blue-500':'bg-[#1A1A1A] border-blue-900/30'}`}><div className="text-3xl font-bold text-white">{t.numero}</div><div className="text-[10px] text-blue-400">1er</div><div className="text-xs mt-1 text-gray-500">{s}</div></button>
+              })}
+            </div>
+          </>
+        )}
+        {tables.length===0 && <div className="text-center text-zinc-500 py-10">Ma kayn 7ta table - zidhom f Admin → Tables</div>}
+      </div>
     </div>
   );
-      }
+}
 function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: string; onBack: () => void }) {
   const [menus, setMenus] = useState<any[]>([]);
   const [matieres, setMatieres] = useState<any[]>([]);
@@ -212,4 +216,4 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
       {cartItems.length > 0 && <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#1A1A1A] border-t border-gray-800 p-4"><div className="max-w-4xl mx-auto flex items-center justify-between"><div><div className="text-gray-400 text-sm">{cartItems.length} articles</div><div className="text-white text-2xl font-bold">{cartTotal.toFixed(0)} DH</div></div><button onClick={send} disabled={sending} className="flex items-center gap-2 bg-[#FF6B00] text-white px-6 py-3.5 rounded-xl"><Send className="w-5 h-5" />{sending? 'Envoi...' : 'Envoyer'}</button></div></div>}
     </div>
   );
-}
+        }
