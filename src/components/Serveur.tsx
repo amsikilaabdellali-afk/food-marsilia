@@ -118,14 +118,45 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
     if (cartItems.length === 0) return;
     setSending(true);
     try {
-      const { data: cmd } = await supabase.from('commandes').insert({ table_id: table.id, serveur_nom: serveurNom, statut: 'en_attente', total: cartTotal }).select().single();
+      // FIX 1: n-zido table_numero bach Rapports y-ban fih Table s7i7a
+      const { data: cmd, error: cmdErr } = await supabase.from('commandes').insert({
+        table_id: table.id,
+        table_numero: table.numero,
+        serveur_nom: serveurNom,
+        statut: 'en_attente',
+        total: cartTotal
+      }).select().single();
+
+      if(cmdErr){ alert('Erreur commande: '+cmdErr.message); setSending(false); return; }
+
       if (cmd) {
+        // FIX 2 L-KBIR: n-sejlo b ga3 les noms possibles bach y-khdam m3a ay schema
         const items = cartItems.map((x: any) => {
           const mm = menus.find((m) => m.id === x[0])!;
-          return { commande_id: cmd.id, menu_id: x[0], menu_nom: mm.nom, prix: mm.prix, qte: x[1] };
+          return {
+            commande_id: cmd.id,
+            menu_id: x[0],
+            // n-3ti ga3 les variantes
+            menu_nom: mm.nom,
+            nom: mm.nom,
+            plat: mm.nom,
+            prix: Number(mm.prix),
+            prix_unitaire: Number(mm.prix),
+            qte: x[1],
+            quantite: x[1],
+          };
         });
-        await supabase.from('commande_items').insert(items as any);
+
+        const { error: itemsErr } = await supabase.from('commande_items').insert(items as any);
+        if(itemsErr){
+          console.log('Erreur items:', itemsErr);
+          alert('Items erreur: '+itemsErr.message + ' - sir Supabase w dir Disable RLS f commande_items');
+        } else {
+          console.log('Items tsejlo mzyan:', items.length);
+        }
+
         await supabase.from('tables').update({ statut: 'en_cours' }).eq('id', table.id);
+
         for (let i = 0; i < cartItems.length; i++) {
           const menuId = cartItems[i][0] as string;
           const qte = cartItems[i][1] as number;
@@ -139,7 +170,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
           }
         }
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); alert('Erreur: '+e); }
     setSending(false);
     onBack();
   };
@@ -173,4 +204,4 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
       {cartItems.length > 0 && <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#1A1A1A] border-t border-gray-800 p-4"><div className="max-w-4xl mx-auto flex items-center justify-between"><div><div className="text-gray-400 text-sm">{cartItems.length} articles</div><div className="text-white text-2xl font-bold">{cartTotal.toFixed(0)} DH</div></div><button onClick={send} disabled={sending} className="flex items-center gap-2 bg-[#FF6B00] text-white px-6 py-3.5 rounded-xl"><Send className="w-5 h-5" />{sending? 'Envoi...' : 'Envoyer'}</button></div></div>}
     </div>
   );
-}
+                                                                      }
