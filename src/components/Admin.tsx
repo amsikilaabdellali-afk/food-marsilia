@@ -1,201 +1,480 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase, type Menu, type MatierePremiere, type Recette, type TableResto, type Commande, type Category } from '@/lib/supabase';
-import { ArrowLeft, Plus, Minus, Send, Image as ImageIcon } from 'lucide-react';
+import { adminUsers } from '@/lib/adminUsers';
+import { supabase, type Commande, type Menu, type MatierePremiere, type Recette, type CommandeItem, type Category, type Utilisateur } from '@/lib/supabase';
+import {
+  LayoutDashboard, UtensilsCrossed, Package, ClipboardList, Leaf, Tags, Users, FileBarChart,
+  Plus, Edit3, Trash2, X, Search, TrendingUp, DollarSign, ShoppingBag,
+  AlertTriangle, Image as ImageIcon, ChevronDown, ChevronRight, ArrowUp, ArrowDown, Printer, Calendar
+} from 'lucide-react';
 
-export default function Serveur({ serveurNom }: { serveurNom: string }) {
-  const [view, setView] = useState<'tables' | 'commande'>('tables');
-  const [selectedTable, setSelectedTable] = useState<TableResto | null>(null);
-  if (view === 'commande' && selectedTable) {
-    return <CommandeView table={selectedTable} serveurNom={serveurNom} onBack={() => setView('tables')} />;
-  }
-  return <TablesView onSelectTable={(t) => { setSelectedTable(t); setView('commande'); }} />;
-}
+type Tab = 'dashboard' | 'menu' | 'stock' | 'commandes' | 'matiere' | 'categories' | 'utilisateurs' | 'rapports';
 
-function TablesView({ onSelectTable }: { onSelectTable: (t: TableResto) => void }) {
-  const [tables, setTables] = useState<TableResto[]>([]);
-  const [commandes, setCommandes] = useState<Commande[]>([]);
-  const [loading, setLoading] = useState(true);
-  const load = useCallback(async () => {
-    const [{ data: t }, { data: c }] = await Promise.all([
-      supabase.from('tables').select('*').order('numero'),
-      supabase.from('commandes').select('*').in('statut', ['en_attente', 'en_preparation', 'pret']),
-    ]);
-    setTables(t || []); setCommandes(c || []); setLoading(false);
-  }, []);
-  useEffect(() => { load(); const i = setInterval(load, 3000); return () => clearInterval(i); }, [load]);
-  const getTableStatus = (tableId: string) => {
-    const tableCmds = commandes.filter((c) => c.table_id === tableId);
-    if (tableCmds.some((c) => c.statut === 'pret')) return 'pret';
-    if (tableCmds.length > 0) return 'en_cours';
-    return 'libre';
-  };
-  if (loading) return <LoadingSpinner />;
+export default function Admin() {
+  const [tab, setTab] = useState<Tab>('dashboard');
+
+  const tabs: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'menu', label: 'Menu', icon: UtensilsCrossed },
+    { id: 'stock', label: 'Stock', icon: Package },
+    { id: 'commandes', label: 'Commandes', icon: ClipboardList },
+    { id: 'matiere', label: 'Matière', icon: Leaf },
+    { id: 'categories', label: 'Catégories', icon: Tags },
+    { id: 'utilisateurs', label: 'Utilisateurs', icon: Users },
+    { id: 'rapports', label: 'Rapports', icon: FileBarChart },
+  ];
+
   return (
-    <div className="p-4 max-w-4xl mx-auto">
-      <h2 className="text-xl font-bold text-white mb-4">Tables</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-        {tables.map((t) => {
-          const status = getTableStatus(t.id);
-          return (
-            <button key={t.id} onClick={() => onSelectTable(t)} className={`aspect-square rounded-2xl flex flex-col items-center justify-center border-2 ${status==='pret'?'bg-green-900/40 border-green-500':status==='en_cours'?'bg-blue-950/40 border-blue-600':'bg-[#1A1A1A] border-gray-800'}`}>
-              <div className="text-3xl font-bold text-white">{t.numero}</div>
-              <div className="text-xs mt-1 text-gray-500">{status}</div>
-            </button>
-          );
-        })}
+    <div className="min-h-screen bg-[#0A0A0A] pb-20">
+      <div className="sticky top-0 z-30 bg-[#0A0A0A]/95 backdrop-blur border-b border-gray-800">
+        <div className="flex items-center gap-1 px-2 py-2 overflow-x-auto scrollbar-hide">
+          {tabs.map((t) => {
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
+                  tab === t.id ? 'bg-[#FF6B00] text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="p-4 max-w-6xl mx-auto">
+        {tab === 'dashboard' && <DashboardTab />}
+        {tab === 'menu' && <MenuTab />}
+        {tab === 'stock' && <StockTab />}
+        {tab === 'commandes' && <CommandesTab />}
+        {tab === 'matiere' && <MatiereTab />}
+        {tab === 'categories' && <CategoriesTab />}
+        {tab === 'utilisateurs' && <UtilisateursTab />}
+        {tab === 'rapports' && <RapportsTab />}
       </div>
     </div>
   );
 }
 
-function CommandeView({ table, serveurNom, onBack }: { table: TableResto; serveurNom: string; onBack: () => void }) {
+// ============ DASHBOARD ============
+function DashboardTab() {
+  const [commandes, setCommandes] = useState<Commande[]>([]);
+  const [items, setItems] = useState<CommandeItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      const today = new Date().toISOString().split('T')[0];
+      const { data: cmds } = await supabase
+        .from('commandes')
+        .select('*')
+        .gte('created_at', today + 'T00:00:00')
+        .order('created_at', { ascending: false });
+      setCommandes(cmds || []);
+
+      if (cmds && cmds.length > 0) {
+        const ids = cmds.map((c) => c.id);
+        const { data: its } = await supabase
+          .from('commande_items')
+          .select('*')
+          .in('commande_id', ids);
+        setItems(its || []);
+      }
+      setLoading(false);
+    };
+    load();
+    const interval = setInterval(load, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading) return <LoadingSpinner />;
+
+  const caTotal = commandes.reduce((s, c) => s + Number(c.total), 0);
+  const caPaye = commandes.filter((c) => c.statut === 'paye').reduce((s, c) => s + Number(c.total), 0);
+  const nbCmd = commandes.length;
+  const panierMoy = nbCmd > 0 ? caTotal / nbCmd : 0;
+
+  const platCounts: Record<string, { count: number; revenue: number }> = {};
+  items.forEach((it) => {
+    if (!platCounts[it.menu_nom]) platCounts[it.menu_nom] = { count: 0, revenue: 0 };
+    platCounts[it.menu_nom].count += it.qte;
+    platCounts[it.menu_nom].revenue += it.qte * Number(it.prix);
+  });
+  const topPlats = Object.entries(platCounts)
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 5);
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-xl font-bold text-white">Tableau de bord — Aujourd'hui</h2>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard icon={DollarSign} label="CA du jour" value={`${caTotal.toFixed(0)} DH`} color="text-green-400" bg="bg-green-950/30" />
+        <StatCard icon={TrendingUp} label="CA encaissé" value={`${caPaye.toFixed(0)} DH`} color="text-[#FF6B00]" bg="bg-orange-950/30" />
+        <StatCard icon={ShoppingBag} label="Commandes" value={nbCmd.toString()} color="text-blue-400" bg="bg-blue-950/30" />
+        <StatCard icon={TrendingUp} label="Panier moyen" value={`${panierMoy.toFixed(0)} DH`} color="text-purple-400" bg="bg-purple-950/30" />
+      </div>
+
+      <div className="bg-[#1A1A1A] rounded-2xl p-5 border border-gray-800">
+        <h3 className="text-white font-semibold mb-4">Top 5 plats</h3>
+        {topPlats.length === 0 ? (
+          <p className="text-gray-500 text-sm">Aucune commande aujourd'hui</p>
+        ) : (
+          <div className="space-y-3">
+            {topPlats.map(([nom, info], i) => (
+              <div key={nom} className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-full bg-[#FF6B00]/20 text-[#FF6B00] flex items-center justify-center text-sm font-bold">
+                  {i + 1}
+                </div>
+                <div className="flex-1">
+                  <div className="text-white text-sm font-medium">{nom}</div>
+                  <div className="text-gray-500 text-xs">{info.count} vendus · {info.revenue.toFixed(0)} DH</div>
+                </div>
+                <div className="w-24 bg-gray-800 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="h-full bg-[#FF6B00] rounded-full"
+                    style={{ width: `${(info.count / topPlats[0][1].count) * 100}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-[#1A1A1A] rounded-2xl p-5 border border-gray-800">
+        <h3 className="text-white font-semibold mb-4">Commandes récentes</h3>
+        {commandes.length === 0 ? (
+          <p className="text-gray-500 text-sm">Aucune commande aujourd'hui</p>
+        ) : (
+          <div className="space-y-2">
+            {commandes.slice(0, 8).map((c) => (
+              <div key={c.id} className="flex items-center justify-between py-2 border-b border-gray-800 last:border-0">
+                <div>
+                  <span className="text-white text-sm font-medium">{c.serveur_nom || 'N/A'}</span>
+                  <span className="text-gray-500 text-xs ml-2">
+                    {new Date(c.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <StatusBadge statut={c.statut} />
+                  <span className="text-white text-sm font-semibold">{Number(c.total).toFixed(0)} DH</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ icon: Icon, label, value, color, bg }: { icon: typeof DollarSign; label: string; value: string; color: string; bg: string }) {
+  return (
+    <div className="bg-[#1A1A1A] rounded-2xl p-4 border border-gray-800">
+      <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center mb-3`}>
+        <Icon className={`w-5 h-5 ${color}`} />
+      </div>
+      <div className="text-white text-xl font-bold">{value}</div>
+      <div className="text-gray-500 text-xs mt-0.5">{label}</div>
+    </div>
+  );
+}
+
+function StatusBadge({ statut }: { statut: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    en_attente: { label: 'En attente', cls: 'bg-gray-700 text-gray-300' },
+    en_preparation: { label: 'En préparation', cls: 'bg-blue-900 text-blue-300' },
+    pret: { label: 'Prêt', cls: 'bg-green-900 text-green-300' },
+    paye: { label: 'Payé', cls: 'bg-green-700 text-white' },
+  };
+  const s = map[statut] || map.en_attente;
+  return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${s.cls}`}>{s.label}</span>;
+}
+
+// ============ MENU ============
+function MenuTab() {
   const [menus, setMenus] = useState<Menu[]>([]);
   const [matieres, setMatieres] = useState<MatierePremiere[]>([]);
   const [recettes, setRecettes] = useState<Recette[]>([]);
-  const [dbCategories, setDbCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [cart, setCart] = useState<Record<string, number>>({});
-  const [filter, setFilter] = useState('Tous');
-  const [sending, setSending] = useState(false);
+  const [filter, setFilter] = useState<string>('Tous');
+  const [search, setSearch] = useState('');
+  const [editing, setEditing] = useState<Menu | null>(null);
+  const [showForm, setShowForm] = useState(false);
 
   const load = useCallback(async () => {
     const [{ data: m }, { data: mp }, { data: r }, { data: cats }] = await Promise.all([
-      supabase.from('menu').select('*').eq('disponible', true).order('categorie').order('nom'),
-      supabase.from('matiere_premiere').select('*'),
+      supabase.from('menu').select('*').order('categorie').order('nom'),
+      supabase.from('matiere_premiere').select('*').order('nom'),
       supabase.from('recette').select('*'),
       supabase.from('categories').select('*').order('ordre'),
     ]);
-    setMenus(m || []); setMatieres(mp || []); setRecettes(r || []); setDbCategories(cats || []); setLoading(false);
+    setMenus(m || []);
+    setMatieres(mp || []);
+    setRecettes(r || []);
+    setCategories(cats || []);
+    setLoading(false);
   }, []);
+
   useEffect(() => { load(); }, [load]);
 
-  // STOCK S7I7 - ghir quantite
-  const getStockReel = (matiereId: string) => {
-    const mp: any = (matieres as any[]).find((x: any) => x.id === matiereId);
-    if (!mp) return 0;
-    return Number(mp.quantite?? 0);
+  const catList = ['Tous', ...categories.map((c) => c.nom)];
+  const catLabel = (nom: string) => categories.find((c) => c.nom === nom)?.label || nom;
+
+  const filtered = menus.filter((m) => {
+    if (filter !== 'Tous' && m.categorie !== filter) return false;
+    if (search && !m.nom.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  const grouped = filtered.reduce<Record<string, Menu[]>>((acc, m) => {
+    (acc[m.categorie] = acc[m.categorie] || []).push(m);
+    return acc;
+  }, {});
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Supprimer ce plat ?')) return;
+    await supabase.from('recette').delete().eq('menu_id', id);
+    await supabase.from('menu').delete().eq('id', id);
+    load();
   };
 
-  // Check wach plat kayn stock
-  const getRuptureInfo = (menuId: string, qteVoulueSupp = 1) => {
-    const recetteItems: any[] = (recettes as any[]).filter((r: any) => r.menu_id === menuId);
-    if (recetteItems.length === 0) return null; // ila ma 3andouch recette khllih
-
-    for (const r of recetteItems) {
-      const mp: any = (matieres as any[]).find((x: any) => x.id === r.matiere_id);
-      const stockReel = getStockReel(r.matiere_id);
-
-      // Ch7al deja f panier dyalek men had matiere
-      let fPanier = 0;
-      for (const [mId, qte] of Object.entries(cart)) {
-        const rec: any = (recettes as any[]).find((x: any) => x.menu_id === mId && x.matiere_id === r.matiere_id);
-        if (rec) fPanier += Number(rec.qte_necessaire?? 0) * qte;
-      }
-
-      const besoin = Number(r.qte_necessaire?? 0) * qteVoulueSupp;
-
-      if (qteVoulueSupp === 0) {
-        // Affichage: ila stock - panier < 0 => rupture
-        if (stockReel - fPanier < 0.001) return { nom: mp?.nom, restant: stockReel - fPanier };
-      } else {
-        // Ziyada: ila stock - panier < besoin => ma tzidch
-        if (stockReel - fPanier < besoin - 0.001) return { nom: mp?.nom, restant: stockReel - fPanier };
-      }
-    }
-    return null;
-  };
-
-  const catList = ['Tous',...dbCategories.map((c) => c.nom)];
-  const catLabel = (nom: string) => dbCategories.find((c) => c.nom === nom)?.label || nom;
-  const filtered = menus.filter((m) => { if (filter!== 'Tous' && m.categorie!== filter) return false; return true; });
-  const grouped = filtered.reduce<Record<string, Menu[]>>((acc, m) => { (acc[m.categorie] = acc[m.categorie] || []).push(m); return acc; }, {});
-  const cartItems = Object.entries(cart).filter(([, qte]) => qte > 0);
-  const cartTotal = cartItems.reduce((sum, [menuId, qte]) => { const m = menus.find((x) => x.id === menuId); return sum + (m? Number(m.prix) * qte : 0); }, 0);
-
-  const addToCart = (menuId: string) => {
-    const rupture = getRuptureInfo(menuId, 1);
-    if (rupture) {
-      alert(`Stock na9es! ${rupture.nom} ba9i fih ghir ${rupture.restant.toFixed(2)}`);
-      return;
-    }
-    setCart((c) => ({...c, [menuId]: (c[menuId] || 0) + 1 }));
-  };
-  const removeFromCart = (menuId: string) => setCart((c) => { const next = {...c }; if (next[menuId] > 1) next[menuId]--; else delete next[menuId]; return next; });
-
-  const handleSend = async () => {
-    if (cartItems.length === 0) return;
-    setSending(true);
-    try {
-      const total = cartTotal;
-      const { data: cmd } = await supabase.from('commandes').insert({ table_id: table.id, serveur_nom: serveurNom, statut: 'en_attente', total } as any).select().single();
-      if (cmd) {
-        const items = cartItems.map(([menuId, qte]) => {
-          const m = menus.find((x) => x.id === menuId)!;
-          return { commande_id: cmd.id, menu_id: menuId, menu_nom: m.nom, prix: m.prix, qte };
-        });
-        await supabase.from('commande_items').insert(items as any);
-        await supabase.from('tables').update({ statut: 'en_cours' } as any).eq('id', table.id);
-      }
-    } catch (e) { console.error(e); }
-    setSending(false); onBack();
+  const toggleDispo = async (m: Menu) => {
+    await supabase.from('menu').update({ disponible: !m.disponible }).eq('id', m.id);
+    load();
   };
 
   if (loading) return <LoadingSpinner />;
+
   return (
-    <div className="min-h-screen bg-[#0A0A0A] pb-32">
-      <div className="sticky top-0 z-30 bg-[#0A0A0A]/95 backdrop-blur border-b border-gray-800 px-4 py-3">
-        <div className="flex items-center gap-3 max-w-4xl mx-auto">
-          <button onClick={onBack} className="p-2 rounded-lg bg-[#1A1A1A] text-gray-300"><ArrowLeft className="w-5 h-5" /></button>
-          <div><h2 className="text-white font-bold">Table {table.numero}</h2><p className="text-gray-500 text-xs">{serveurNom}</p></div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-xl font-bold text-white">Gestion du Menu</h2>
+        <button
+          onClick={() => { setEditing(null); setShowForm(true); }}
+          className="flex items-center gap-2 bg-[#FF6B00] hover:bg-[#FF7A1A] text-white font-medium px-4 py-2.5 rounded-xl transition-colors"
+        >
+          <Plus className="w-4 h-4" /> Ajouter
+        </button>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher un plat..."
+            className="w-full bg-[#1A1A1A] text-white rounded-xl py-2.5 pl-10 pr-4 border border-gray-800 focus:border-[#FF6B00] focus:outline-none"
+          />
         </div>
       </div>
-      <div className="p-4 max-w-4xl mx-auto">
-        <div className="flex gap-2 overflow-x-auto pb-1 mb-4">
-          {catList.map((c) => (<button key={c} onClick={() => setFilter(c)} className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${filter === c? 'bg-[#FF6B00] text-white' : 'bg-[#1A1A1A] text-gray-400'}`}>{c === 'Tous'? 'Tous' : catLabel(c)}</button>))}
-        </div>
-        {Object.entries(grouped).map(([cat, items]) => (
-          <div key={cat} className="mb-6">
-            <h3 className="text-lg font-bold text-[#FF6B00] mb-3">{catLabel(cat)}</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {items.map((m) => {
-                const rupture = getRuptureInfo(m.id, 0);
-                const isRupture =!!rupture;
-                const inCart = cart[m.id] || 0;
-                return (
-                  <div key={m.id} className={`bg-[#1A1A1A] rounded-2xl overflow-hidden border ${isRupture? 'border-red-700 opacity-50' : inCart > 0? 'border-[#FF6B00]' : 'border-gray-800'}`}>
-                    <div className="relative h-24 bg-gray-900">
-                      {m.image_url? <img src={m.image_url} alt={m.nom} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon className="w-8 h-8 text-gray-700" /></div>}
-                      {inCart > 0 && <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-[#FF6B00] text-white text-xs font-bold flex items-center justify-center">{inCart}</div>}
-                    </div>
-                    <div className="p-2.5">
-                      <h4 className="text-white text-sm font-semibold leading-tight">{m.nom}</h4>
-                      <div className="flex items-center justify-between mt-1.5">
-                        <span className="text-[#FF6B00] font-bold text-sm">{Number(m.prix).toFixed(0)} DH</span>
-                        {isRupture? <span className="text-red-400 text-[9px] font-bold">RUPTURE</span> : inCart > 0? (
-                          <div className="flex items-center gap-1">
-                            <button onClick={() => removeFromCart(m.id)} className="w-6 h-6 rounded-lg bg-gray-800 text-white flex items-center justify-center"><Minus className="w-3 h-3" /></button>
-                            <span className="text-white text-sm font-bold w-5 text-center">{inCart}</span>
-                            <button onClick={() => addToCart(m.id)} className="w-6 h-6 rounded-lg bg-[#FF6B00] text-white flex items-center justify-center"><Plus className="w-3 h-3" /></button>
-                          </div>
-                        ) : (<button onClick={() => addToCart(m.id)} className="w-7 h-7 rounded-lg bg-[#FF6B00] text-white flex items-center justify-center"><Plus className="w-4 h-4" /></button>)}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+        {catList.map((c) => (
+          <button
+            key={c}
+            onClick={() => setFilter(c)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+              filter === c ? 'bg-[#FF6B00] text-white' : 'bg-[#1A1A1A] text-gray-400 hover:text-white'
+            }`}
+          >
+            {c === 'Tous' ? 'Tous' : catLabel(c)}
+          </button>
         ))}
       </div>
-      {cartItems.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#1A1A1A] border-t border-gray-800 p-4">
-          <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
-            <div><div className="text-gray-400 text-sm">{cartItems.length} article(s)</div><div className="text-white text-2xl font-bold">{cartTotal.toFixed(0)} DH</div></div>
-            <button onClick={handleSend} disabled={sending} className="flex items-center gap-2 bg-[#FF6B00] text-white font-semibold px-6 py-3.5 rounded-xl disabled:opacity-50"><Send className="w-5 h-5" />{sending? 'Envoi...' : 'Envoyer'}</button>
+
+      {Object.entries(grouped).map(([cat, items]) => (
+        <div key={cat}>
+          <h3 className="text-lg font-bold text-[#FF6B00] mb-3">{catLabel(cat)}</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {items.map((m) => {
+              const recetteItems = recettes.filter((r) => r.menu_id === m.id);
+              return (
+                <div key={m.id} className="bg-[#1A1A1A] rounded-2xl overflow-hidden border border-gray-800">
+                  <div className="relative h-32 bg-gray-900">
+                    {m.image_url ? (
+                      <img src={m.image_url} alt={m.nom} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <ImageIcon className="w-10 h-10 text-gray-700" />
+                      </div>
+                    )}
+                    <button
+                      onClick={() => toggleDispo(m)}
+                      className={`absolute top-2 right-2 px-2.5 py-1 rounded-lg text-xs font-medium ${
+                        m.disponible ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                      }`}
+                    >
+                      {m.disponible ? 'Disponible' : 'Indisponible'}
+                    </button>
+                  </div>
+                  <div className="p-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h4 className="text-white font-semibold text-sm">{m.nom}</h4>
+                        <p className="text-[#FF6B00] font-bold">{Number(m.prix).toFixed(0)} DH</p>
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => { setEditing(m); setShowForm(true); }}
+                          className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(m.id)}
+                          className="p-2 rounded-lg bg-red-950 hover:bg-red-900 text-red-400"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    {recetteItems.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {recetteItems.map((r) => {
+                          const mp = matieres.find((x) => x.id === r.matiere_id);
+                          return (
+                            <span key={r.id} className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded">
+                              {mp?.nom} {r.qte_necessaire}{mp?.unite}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
+      ))}
+
+      {showForm && (
+        <MenuForm
+          menu={editing}
+          matieres={matieres}
+          recettes={recettes}
+          categories={categories}
+          onClose={() => { setShowForm(false); setEditing(null); }}
+          onSaved={load}
+        />
       )}
     </div>
   );
 }
-function LoadingSpinner() { return <div className="flex items-center justify-center py-12"><div className="w-8 h-8 border-2 border-[#FF6B00] border-t-transparent rounded-full animate-spin" /></div>; }
+
+function MenuForm({ menu, matieres, recettes, categories, onClose, onSaved }: {
+  menu: Menu | null;
+  matieres: MatierePremiere[];
+  recettes: Recette[];
+  categories: Category[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [nom, setNom] = useState(menu?.nom || '');
+  const [prix, setPrix] = useState(menu ? String(menu.prix) : '');
+  const [categorie, setCategorie] = useState(menu?.categorie || (categories[0]?.nom || 'Plats'));
+  const [image_url, setImageUrl] = useState(menu?.image_url || '');
+  const [disponible, setDisponible] = useState(menu?.disponible ?? true);
+  const [ingredients, setIngredients] = useState<{ matiere_id: string; qte: string }[]>(
+    menu ? recettes.filter((r) => r.menu_id === menu.id).map((r) => ({ matiere_id: r.matiere_id, qte: String(r.qte_necessaire) })) : []
+  );
+  const [saving, setSaving] = useState(false);
+
+  const handleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxW = 800, maxH = 800;
+        let { width, height } = img;
+        if (width > height) {
+          if (width > maxW) { height = (height * maxW) / width; width = maxW; }
+        } else {
+          if (height > maxH) { width = (width * maxH) / height; height = maxH; }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        setImageUrl(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const addIngredient = () => {
+    if (matieres.length === 0) return;
+    setIngredients([...ingredients, { matiere_id: matieres[0].id, qte: '0.1' }]);
+  };
+
+  const removeIngredient = (idx: number) => {
+    setIngredients(ingredients.filter((_, i) => i !== idx));
+  };
+
+  const handleSave = async () => {
+    if (!nom || !prix) return;
+    setSaving(true);
+    const payload = { nom, prix: parseFloat(prix), categorie, image_url, disponible };
+    let menuId = menu?.id;
+
+    if (menu) {
+      await supabase.from('menu').update(payload).eq('id', menu.id);
+      await supabase.from('recette').delete().eq('menu_id', menu.id);
+    } else {
+      const { data } = await supabase.from('menu').insert(payload).select().single();
+      menuId = data?.id;
+    }
+
+    if (menuId && ingredients.length > 0) {
+      const recetteRows = ingredients
+        .filter((i) => i.matiere_id && parseFloat(i.qte) > 0)
+        .map((i) => ({ menu_id: menuId, matiere_id: i.matiere_id, qte_necessaire: parseFloat(i.qte) }));
+      if (recetteRows.length > 0) {
+        await supabase.from('recette').insert(recetteRows);
+      }
+    }
+
+    setSaving(false);
+    onSaved();
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-[#1A1A1A] rounded-2xl w-full max-w-lg my-8 border border-gray-800">
+        <div className="flex items-center justify-between p-5 border-b border-gray-800">
+          <h3 className="text-white font-semibold text-lg">{menu ? 'Modifier le plat' : 'Nouveau plat'}</h3>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-800 text-gray-400">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+          <div>
+            <label className="block text-sm text-gray-400 mb-1.5">Nom du plat</label>
+            <input
+              value={nom}
+              onChange={(e) => setNom(e.target.value)}
+              className="w-full bg-[#0A0A0A] text-white rounded-xl py-2.5 px-3 border border-gray-700 focus:border-[#FF6B00] focus:outline-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-gray-400 mb-1.5">Prix (DH)</label>
+              <input
+                type="number"
+                value={prix}
+                onChange={(e) => setPrix(e.target.value)}
+                classN
