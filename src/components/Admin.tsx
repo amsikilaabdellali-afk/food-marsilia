@@ -43,5 +43,19 @@ return(<div className="min-h-screen bg-black text-white p-3">
 <div className="bg-purple-900/30 border border-purple-700 rounded-xl p-3"><div className="text-[10px] text-purple-300">CHEQUE</div><div className="font-bold text-purple-400">{sum(groups.cheque).toFixed(0)} DH</div><div className="text-xs">{groups.cheque.length} cmd</div></div>
 <div className="bg-yellow-900/40 border-2 border-yellow-500 rounded-xl p-3"><div className="text-[10px] text-yellow-300 font-black">REMISE</div><div className="font-bold text-yellow-400">{sum(groups.remise).toFixed(0)} DH</div><div className="text-xs">{groups.remise.length} cmd (-{totalRemise.toFixed(0)})</div></div>
 <div className="bg-orange-900/30 border border-orange-700 rounded-xl p-3 col-span-2"><div className="text-[10px] text-orange-300">OFFERT</div><div className="font-bold text-orange-400">{sumReel(groups.offert).toFixed(0)} DH perdu</div><div className="text-xs">{groups.offert.length} cmd</div></div></div>
-  {cmds.map(c=>{const its=itemsMap[c.id]||[];const tableNum=c.table_numero || (c.table_id? tablesMap[c.table_id]?.numero : null) || '?';return(<div key={c.id} className="bg-[#1A1A1A] border border-zinc-800 rounded-xl p-3 mb-2"><div className="flex justify-between font-bold"><span>Table {tableNum} - {c.serveur_nom||'?'}</span><span className="text-orange-400">{Number(c.total_final||c.total||0).toFixed(0)} DH</span></div><div className="text-[11px] text-zinc-500">{new Date(c.paye_at||c.created_at).toLocaleTimeString()} - {c.payment_method}</div><div className="mt-2 bg-black/50 rounded-xl p-2">{its.map(it=>(<div key={it.id} className="flex justify-between py-1 text-sm"><span>{it.qte||1}x {it.menu_nom||'Plat'}</span><span>{(Number(it.qte||1)*Number(it.prix||0)).toFixed(0)} DH</span></div>))}</div></div>);})}
+  {[
+{k:'espece',t:'ESPECE ('+groups.espece.length+') - '+sum(groups.espece).toFixed(0)+' DH',d:groups.espece,c:'border-green-600'},
+{k:'tpe',t:'TPE ('+groups.tpe.length+') - '+sum(groups.tpe).toFixed(0)+' DH',d:groups.tpe,c:'border-blue-600'},
+{k:'cheque',t:'CHEQUE ('+groups.cheque.length+') - '+sum(groups.cheque).toFixed(0)+' DH',d:groups.cheque,c:'border-purple-600'},
+{k:'remise',t:'REMISE ('+groups.remise.length+') - '+sum(groups.remise).toFixed(0)+' DH (-'+totalRemise.toFixed(0)+' DH)',d:groups.remise,c:'border-yellow-500'},
+{k:'offert',t:'OFFERT ('+groups.offert.length+') - '+sumReel(groups.offert).toFixed(0)+' DH perdu',d:groups.offert,c:'border-orange-600'},
+].map(g=> g.d.length>0 && (
+<div key={g.k} className={'border-l-4 '+g.c+' pl-2 mb-4'}>
+<h3 className="font-black py-2 text-sm">{g.t}</h3>
+{g.d.map(c=>{const its=itemsMap[c.id]||[];const tableNum=c.table_numero || (c.table_id? tablesMap[c.table_id]?.numero : null) || '?';
+return(<div key={c.id} className="bg-[#1A1A1A] border border-zinc-800 rounded-xl p-3 mb-2">
+<div className="flex justify-between font-bold"><span>Table {tableNum} - {c.serveur_nom||'?'}</span><span className="text-orange-400">{Number(c.total_final||c.total||0).toFixed(0)} DH</span></div>
+<div className="text-[11px] text-zinc-500">{new Date(c.paye_at||c.created_at).toLocaleTimeString()} - {c.payment_method} {c.remise_percent? '- Remise '+c.remise_percent+'%':''}</div>
+<div className="mt-2 bg-black/50 rounded-xl p-2">{its.map(it=>(<div key={it.id} className="flex justify-between py-1 text-sm border-b border-zinc-800 last:border-0"><span>{it.qte||1}x {it.menu_nom||'Plat'}</span><span>{(Number(it.qte||1)*Number(it.prix||0)).toFixed(0)} DH</span></div>))}</div></div>);})}
+</div>))}
 </div>);}
