@@ -41,7 +41,7 @@ export default function Caisse({ profil, onLogout }: any) {
         <div class="ticket">
           <center>
             <h2 style="margin:0;font-size:18px">MARSILIA FOOD</h2>
-            <div style="font-size:10px">Bd Mohamed V - Tit Mellil</div>
+            <div style="font-size:10px"> Haj fateh</div>
             <div style="font-size:10px">${date}</div>
             <div style="font-size:14px;font-weight:bold;margin:8px 0;border:1px dashed black;padding:5px">Table ${cmd.table_numero||'?'} - ${copy}</div>
             <div style="font-size:11px">Serveur: ${cmd.serveur_nom||''} | #${cmd.id.slice(0,6)}</div>
