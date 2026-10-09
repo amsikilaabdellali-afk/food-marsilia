@@ -25,6 +25,38 @@ export default function Caisse({ profil, onLogout }: any) {
     alert('Code t-badal ✅');
   };
 
+  // PRINT MIXTE - TICKET KAY-KHRAJ
+  const printTicketMixte = (cmd:any, methods:any, remises:any) => {
+    const date = new Date().toLocaleString('fr-FR');
+    let totalEspece = 0, totalTpe = 0, totalCheque = 0, totalOffert = 0, totalRemise = 0, totalGeneral = 0;
+    const rows = cmd.items.map((it:any)=>{
+      const key = `${cmd.id}-${it.id}`;
+      const m = methods[key] || 'espece';
+      const p = remises[key] || 0;
+      const prix = Number(it.prix||0)*(it.qte||1);
+      const finalP = m==='offert'?0: m==='remise'? prix - prix*p/100 : prix;
+      if(m==='espece') totalEspece+=finalP; else if(m==='tpe') totalTpe+=finalP; else if(m==='cheque') totalCheque+=finalP; else if(m==='offert') totalOffert+=prix; else if(m==='remise') totalRemise+=finalP;
+      totalGeneral+=finalP;
+      return `<div style="display:flex;justify-content:space-between;font-size:12px;margin:4px 0"><span>${it.qte||1}x ${it.menu_nom||it.nom} <b>(${m.toUpperCase()}${p?` -${p}%`:''})</b></span><span>${finalP.toFixed(0)} DH</span></div>`;
+    }).join('');
+    const recap = `${totalEspece>0?`<div style="display:flex;justify-content:space-between"><span>ESPECE:</span><span>${totalEspece.toFixed(0)} DH</span></div>`:''}${totalTpe>0?`<div style="display:flex;justify-content:space-between"><span>TPE:</span><span>${totalTpe.toFixed(0)} DH</span></div>`:''}${totalCheque>0?`<div style="display:flex;justify-content:space-between"><span>CHEQUE:</span><span>${totalCheque.toFixed(0)} DH</span></div>`:''}${totalOffert>0?`<div style="display:flex;justify-content:space-between"><span>OFFERT:</span><span>${totalOffert.toFixed(0)} DH</span></div>`:''}${totalRemise>0?`<div style="display:flex;justify-content:space-between"><span>REMISE:</span><span>${totalRemise.toFixed(0)} DH</span></div>`:''}`;
+    const ticket = (copy:string) => `<div style="width:72mm;padding:5mm;font-family:monospace;color:black;background:white"><center><h2 style="margin:0">MARSILIA FOOD</h2><div style="font-size:10px">${date}</div><div style="font-size:12px;font-weight:bold;margin:6px 0;border:1px dashed black;padding:4px">Table ${cmd.table_numero} - ${copy}<br/>TICKET MIXTE</div></center><hr style="border:1px dashed black">${rows}<hr style="border:1px dashed black">${recap}<div style="display:flex;justify-content:space-between;font-weight:bold;font-size:15px;border-top:2px solid black;margin-top:6px;padding-top:6px"><span>TOTAL:</span><span>${totalGeneral.toFixed(0)} DH</span></div><center style="margin-top:10px;font-size:10px">Merci!</center></div>`;
+    const html = `<html><head><style>@page{size:80mm auto;margin:0}body{margin:0}</style></head><body>${ticket('CLIENT')}<div style="page-break-after:always"></div>${ticket('CAISSE')}<script>setTimeout(()=>{window.print();setTimeout(()=>window.close(),800)},500)<\/script></body></html>`;
+    const iframe = document.createElement('iframe'); iframe.style.position='fixed'; iframe.style.width='0'; iframe.style.height='0'; iframe.style.border='0'; document.body.appendChild(iframe);
+    const doc = iframe.contentWindow?.document; if(doc){ doc.open(); doc.write(html); doc.close(); }
+    setTimeout(()=>{ try{document.body.removeChild(iframe)}catch{} }, 6000);
+  };
+
+  const printTicketTotal = (cmd:any, method:string, percent:number, totalFinal:number) => {
+    const date = new Date().toLocaleString('fr-FR');
+    const rows = cmd.items.map((it:any)=> `<div style="display:flex;justify-content:space-between;font-size:12px"><span>${it.qte||1}x ${it.menu_nom||it.nom}</span><span>${(Number(it.prix||0)*(it.qte||1)).toFixed(0)} DH</span></div>`).join('');
+    const ticket = (copy:string) => `<div style="width:72mm;padding:5mm;font-family:monospace;color:black;background:white"><center><h2>MARSILIA FOOD</h2><div style="font-size:10px">${date}</div><div style="border:1px dashed black;padding:4px;margin:6px 0">Table ${cmd.table_numero} - ${copy}</div></center><hr>${rows}<hr><div style="display:flex;justify-content:space-between;font-weight:bold"><span>TOTAL ${method.toUpperCase()}${percent?` -${percent}%`:''}:</span><span>${totalFinal.toFixed(0)} DH</span></div></div>`;
+    const html = `<html><body>${ticket('CLIENT')}<div style="page-break-after:always"></div>${ticket('CAISSE')}<script>setTimeout(()=>{window.print();window.close()},500)<\/script></body></html>`;
+    const iframe = document.createElement('iframe'); iframe.style.position='fixed'; iframe.style.width='0'; iframe.style.height='0'; iframe.style.border='0'; document.body.appendChild(iframe);
+    const doc = iframe.contentWindow?.document; if(doc){ doc.open(); doc.write(html); doc.close(); }
+    setTimeout(()=>{ try{document.body.removeChild(iframe)}catch{} }, 5000);
+  };
+
   const load = useCallback(async () => {
     const { data: cmds } = await supabase.from('commandes').select('*').in('statut', ['pret','prete','ready']).order('created_at', { ascending: false }).limit(100);
     let finalCmds = cmds || [];
@@ -40,7 +72,7 @@ export default function Caisse({ profil, onLogout }: any) {
       const itemsMap:any={}; (items||[]).forEach((it:any)=>{ (itemsMap[it.commande_id]=itemsMap[it.commande_id]||[]).push(it); });
       const tableMap:any={}; tables.forEach((t:any)=>{ tableMap[t.id]=t; });
       const result = finalCmds.map((c:any)=>({...c, items: itemsMap[c.id]||[], table_numero: c.table_id? tableMap[c.table_id]?.numero?? '?' : '?'}))
-    .filter((c:any)=> c.items.length>0);
+   .filter((c:any)=> c.items.length>0);
       setCommandes(result);
     } else setCommandes([]);
     setLoading(false);
@@ -50,7 +82,7 @@ export default function Caisse({ profil, onLogout }: any) {
 
   const handlePayTotal = async (cmd:any) => {
     if(paying) return;
-    const totalReel = cmd.items.reduce((s:number,it:any)=> s + Number(it.prix||0)*(it.qte||it.quantite||1), 0);
+    const totalReel = cmd.items.reduce((s:number,it:any)=> s + Number(it.prix||0)*(it.qte||1), 0);
     if(!confirm(`Table ${cmd.table_numero} TOTAL ${totalReel.toFixed(0)} DH?`)) return;
     setPaying(cmd.id);
     const method = selectedMethod[cmd.id] || 'espece';
@@ -60,21 +92,14 @@ export default function Caisse({ profil, onLogout }: any) {
     else if(method==='remise') totalFinal = totalReel - totalReel*percent/100;
     try {
       for(const it of cmd.items){
-        await supabase.from('commande_items').update({
-          payment_method: method,
-          remise_percent: percent,
-          paye_at: new Date().toISOString()
-        }).eq('id', it.id);
+        await supabase.from('commande_items').update({ payment_method: method, remise_percent: percent, paye_at: new Date().toISOString() }).eq('id', it.id);
       }
-      await supabase.from('commandes').update({
-        statut:'paye', total:totalReel, total_final:totalFinal,
-        payment_method:method, remise_percent:percent,
-        paye_at:new Date().toISOString()
-      }).eq('id', cmd.id);
+      await supabase.from('commandes').update({ statut:'paye', total:totalReel, total_final:totalFinal, payment_method:method, remise_percent:percent, paye_at:new Date().toISOString() }).eq('id', cmd.id);
       if(cmd.table_id){
         const {data:remaining}=await supabase.from('commandes').select('id').eq('table_id',cmd.table_id).in('statut',['en_attente','en_preparation','pret','prete','ready']).neq('id',cmd.id);
         if(!remaining || remaining.length===0) await supabase.from('tables').update({statut:'libre'}).eq('id',cmd.table_id);
       }
+      printTicketTotal(cmd, method, percent, totalFinal);
       setCommandes(prev => prev.filter(c=>c.id!==cmd.id));
     } catch(e:any){ alert('Erreur: '+e.message); load(); }
     setPaying(null);
@@ -83,7 +108,6 @@ export default function Caisse({ profil, onLogout }: any) {
   const handlePayMixteTotal = async (cmd:any) => {
     if(paying) return;
     let totalGeneral = 0;
-    const details:any[] = [];
     cmd.items.forEach((it:any)=>{
       const key = `${cmd.id}-${it.id}`;
       const m = itemMethods[key] || 'espece';
@@ -91,62 +115,27 @@ export default function Caisse({ profil, onLogout }: any) {
       const prix = Number(it.prix||0)*(it.qte||1);
       const finalP = m==='offert'?0: m==='remise'? prix - prix*p/100 : prix;
       totalGeneral+=finalP;
-      details.push(`${it.menu_nom||it.nom}: ${m.toUpperCase()}${p?` -${p}%`:''}`);
     });
-    if(!confirm(`TICKET MIXTE Table ${cmd.table_numero} = ${totalGeneral.toFixed(0)} DH?\n\n${details.join('\n')}`)) return;
+    if(!confirm(`TICKET MIXTE Table ${cmd.table_numero} = ${totalGeneral.toFixed(0)} DH?`)) return;
+    const savedMethods = {...itemMethods};
+    const savedRemises = {...itemRemises};
     setPaying(cmd.id);
     try {
       for(const it of cmd.items){
         const key = `${cmd.id}-${it.id}`;
         const m = itemMethods[key] || 'espece';
         const p = itemRemises[key] || 0;
-        const {error} = await supabase.from('commande_items').update({
-          payment_method: m,
-          remise_percent: p,
-          paye_at: new Date().toISOString()
-        }).eq('id', it.id);
+        const {error} = await supabase.from('commande_items').update({ payment_method: m, remise_percent: p, paye_at: new Date().toISOString() }).eq('id', it.id);
         if(error) throw error;
       }
-      await supabase.from('commandes').update({
-        statut:'paye',
-        total: totalGeneral,
-        total_final: totalGeneral,
-        payment_method:'mixte',
-        paye_at: new Date().toISOString()
-      }).eq('id', cmd.id);
+      await supabase.from('commandes').update({ statut:'paye', total: totalGeneral, total_final: totalGeneral, payment_method:'mixte', paye_at: new Date().toISOString() }).eq('id', cmd.id);
       if(cmd.table_id){
         const {data:remaining}=await supabase.from('commandes').select('id').eq('table_id',cmd.table_id).neq('statut','paye').neq('id',cmd.id);
         if(!remaining || remaining.length===0) await supabase.from('tables').update({statut:'libre'}).eq('id',cmd.table_id);
       }
+      printTicketMixte(cmd, savedMethods, savedRemises);
       setCommandes(prev => prev.filter(c=>c.id!==cmd.id));
-      setItemMethods({});
-      setItemRemises({});
-    } catch(e:any){ alert('Erreur: '+e.message); console.error(e); }
-    setPaying(null);
-  };
-
-  const handlePaySingleArticle = async (cmd:any, item:any) => {
-    const key = `${cmd.id}-${item.id}`;
-    const method = itemMethods[key] || 'espece';
-    const percent = itemRemises[key] || 0;
-    const prix = Number(item.prix||0)*(item.qte||1);
-    let totalFinal = method==='offert'?0: method==='remise'? prix - prix*percent/100 : prix;
-    if(!confirm(`Tkhallas "${item.menu_nom||item.nom}" = ${totalFinal.toFixed(0)} DH (${method})?`)) return;
-    setPaying(key);
-    try {
-      await supabase.from('commande_items').update({
-        payment_method: method,
-        remise_percent: percent,
-        paye_at: new Date().toISOString()
-      }).eq('id', item.id);
-      const remainingItems = cmd.items.filter((it:any)=> it.id!==item.id);
-      if(remainingItems.length===0){
-        await supabase.from('commandes').update({ statut:'paye', total_final:totalFinal, payment_method:method, paye_at:new Date().toISOString() }).eq('id', cmd.id);
-        if(cmd.table_id) await supabase.from('tables').update({statut:'libre'}).eq('id',cmd.table_id);
-        setCommandes(prev => prev.filter(c=>c.id!==cmd.id));
-      } else {
-        load();
-      }
+      setItemMethods({}); setItemRemises({});
     } catch(e:any){ alert('Erreur: '+e.message); }
     setPaying(null);
   };
@@ -174,7 +163,6 @@ export default function Caisse({ profil, onLogout }: any) {
           return (
           <div key={c.id} className="bg-[#1A1A1A] rounded-2xl p-4 border border-gray-800">
             <div className="flex justify-between mb-3"><div><div className="text-white font-bold text-lg">Table {c.table_numero} - {c.statut}</div><div className="text-xs text-gray-400">{c.items.length} articles - {totalReel.toFixed(0)} DH</div></div><div className="flex gap-2"><button onClick={()=>setModePaiement({...modePaiement,[c.id]:'total'})} className={`text-[10px] px-3 py-1 rounded-full font-bold ${mode==='total'?'bg-white text-black':'bg-zinc-800 text-gray-400'}`}>TOTAL</button><button onClick={()=>setModePaiement({...modePaiement,[c.id]:'articles'})} className={`text-[10px] px-3 py-1 rounded-full font-bold ${mode==='articles'?'bg-orange-500 text-white':'bg-zinc-800 text-gray-400'}`}>MIXTE</button></div></div>
-
             {mode==='total'? (
               <>
                 <div className="bg-black/50 rounded-xl p-2 mb-3 text-xs text-gray-300">{c.items.map((it:any)=> `${it.qte||1}x ${it.menu_nom||it.nom}`).join(' + ')}</div>
@@ -218,7 +206,7 @@ export default function Caisse({ profil, onLogout }: any) {
                   )
                 })}
                 <button onClick={()=>handlePayMixteTotal(c)} disabled={paying===c.id} className="w-full mt-2 py-4 rounded-xl font-black bg-white text-black text-[13px] border-2 border-orange-500 shadow-lg">
-                  🧾 TICKET UNIQUE MIXTE = {totalMixte.toFixed(0)} DH
+                  🧾 TICKET UNIQUE MIXTE = {totalMixte.toFixed(0)} DH - IMPRIMER
                 </button>
               </div>
             )}
