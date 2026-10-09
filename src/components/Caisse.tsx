@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { DollarSign, Printer, LogOut, Settings } from 'lucide-react';
+import { DollarSign, Printer, LogOut, Settings, CheckSquare } from 'lucide-react';
 
 export default function Caisse({ profil, onLogout }: any) {
   const [commandes, setCommandes] = useState<any[]>([]);
@@ -11,6 +11,10 @@ export default function Caisse({ profil, onLogout }: any) {
   const [remiseMap, setRemiseMap] = useState<Record<string, number>>({});
   const [showRemiseFor, setShowRemiseFor] = useState<string | null>(null);
   const [customRemise, setCustomRemise] = useState('10');
+
+  // JDID - LAKHLAS PAR ARTICLE
+  const [selectedItems, setSelectedItems] = useState<Record<string, boolean>>({});
+  const [modePaiement, setModePaiement] = useState<Record<string, 'total' | 'articles'>>({});
 
   const getCode = () => localStorage.getItem('remise_code') || '1234';
 
@@ -23,15 +27,35 @@ export default function Caisse({ profil, onLogout }: any) {
     alert('Code t-badal: ' + newCode);
   };
 
+  const getTotalAPayer = (cmd:any) => {
+    const mode = modePaiement[cmd.id] || 'total';
+    if(mode === 'total'){
+      return Number(cmd.total||0);
+    }
+    let total = 0;
+    cmd.items?.forEach((it:any)=>{
+      const key = `${cmd.id}-${it.id}`;
+      if(selectedItems[key]){
+        total += Number(it.prix||0) * (it.qte||it.quantite||1);
+      }
+    });
+    return total;
+  };
+
   const printDoubleTicket = (cmd:any) => {
     try {
-      const totalReel = Number(cmd.total||0);
+      const mode = modePaiement[cmd.id] || 'total';
+      const itemsToPrint = mode === 'articles'
+       ? cmd.items.filter((it:any)=> selectedItems[`${cmd.id}-${it.id}`])
+        : cmd.items;
+
+      const totalReel = itemsToPrint.reduce((s:number,it:any)=> s + Number(it.prix||0)*(it.qte||it.quantite||1), 0);
       const method = selectedMethod[cmd.id] || 'espece';
       const percent = remiseMap[cmd.id] || 0;
       const remiseMontant = method==='offert'? totalReel : method==='remise'? totalReel*percent/100 : 0;
       const totalFinal = totalReel - remiseMontant;
       const date = new Date().toLocaleString('fr-FR');
-      const itemsRows = cmd.items?.map((it:any)=> `
+      const itemsRows = itemsToPrint?.map((it:any)=> `
         <div style="display:flex;justify-content:space-between;font-size:13px;margin:4px 0">
           <span>${it.qte||it.quantite||1}x ${it.menu_nom||it.nom||'Plat'}</span>
           <span>${(Number(it.prix||0)*(it.qte||it.quantite||1)).toFixed(0)} DH</span>
@@ -41,10 +65,9 @@ export default function Caisse({ profil, onLogout }: any) {
         <div class="ticket">
           <center>
             <h2 style="margin:0;font-size:18px">MARSILIA FOOD</h2>
-            <div style="font-size:10px"> Haj fateh</div>
-            <div style="font-size:10px">${date}</div>
+            <div style="font-size:10px">Haj fateh - ${date}</div>
             <div style="font-size:14px;font-weight:bold;margin:8px 0;border:1px dashed black;padding:5px">Table ${cmd.table_numero||'?'} - ${copy}</div>
-            <div style="font-size:11px">Serveur: ${cmd.serveur_nom||''} | #${cmd.id.slice(0,6)}</div>
+            <div style="font-size:11px">${mode==='articles'?'PARTIEL':''} - ${itemsToPrint.length}/${cmd.items.length} articles</div>
           </center>
           <hr style="border:1px dashed black;margin:10px 0">
           ${itemsRows}
@@ -53,12 +76,11 @@ export default function Caisse({ profil, onLogout }: any) {
           ${remiseMontant>0? `<div style="display:flex;justify-content:space-between"><span>Remise ${percent}%:</span><span>-${remiseMontant.toFixed(0)} DH</span></div>`:''}
           <div style="display:flex;justify-content:space-between;font-weight:bold;font-size:16px;margin-top:6px;border-top:2px solid black;padding-top:6px"><span>TOTAL:</span><span>${totalFinal.toFixed(0)} DH</span></div>
           <div style="text-align:center;margin-top:10px;font-size:12px;font-weight:bold">Paiement: ${method.toUpperCase()} ${percent?`(${percent}%)`:''}</div>
-          <center style="margin-top:15px;font-size:10px">Merci pour votre visite!<br/>*** ${copy} ***<br/><br/></center>
         </div>
       `;
 
       const html = `
-        <html><head><title>2 Tickets</title>
+        <html><head><title>Tickets</title>
         <style>
           @page { size: 80mm auto; margin: 0; }
           body { margin:0; padding:0; background:white; color:black; font-family:monospace; }
@@ -102,81 +124,3 @@ export default function Caisse({ profil, onLogout }: any) {
   }, []);
 
   useEffect(()=>{ load(); const i=setInterval(load,4000); return()=>clearInterval(i); },[load]);
-
-  const handlePay = async (cmd:any) => {
-    if(paying) return; setPaying(cmd.id);
-    const totalReel = Number(cmd.total||0);
-    const method = selectedMethod[cmd.id] || 'espece';
-    const percent = remiseMap[cmd.id] || 0;
-    let remiseMontant = 0; let totalFinal = totalReel;
-    if(method==='offert'){ remiseMontant=totalReel; totalFinal=0; }
-    else if(method==='remise'){ remiseMontant = totalReel * percent / 100; totalFinal = totalReel - remiseMontant; }
-    setCommandes(prev => prev.filter(c=>c.id!==cmd.id));
-    try {
-      const { error } = await supabase.from('commandes').update({ statut:'paye', total:totalReel, total_final:totalFinal, payment_method:method, remise:remiseMontant, remise_percent:percent, paye_at:new Date().toISOString() }).eq('id', cmd.id);
-      if(error) throw error;
-      if(cmd.table_id){
-        const {data:remaining}=await supabase.from('commandes').select('id').eq('table_id',cmd.table_id).in('statut',['en_attente','en_preparation','pret','prete','ready']).neq('id',cmd.id);
-        if(!remaining || remaining.length===0) await supabase.from('tables').update({statut:'libre'}).eq('id',cmd.table_id);
-      }
-      setTimeout(()=>printDoubleTicket(cmd), 600);
-    } catch(e:any){ alert('Erreur: '+e.message); load(); }
-    setPaying(null);
-  };
-
-  if(loading) return <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>;
-
-  return (
-    <div className="min-h-screen bg-[#0A0A0A]">
-      <div className="sticky top-0 z-30 bg-[#0A0A0A]/95 border-b border-gray-800 px-4 py-3 flex justify-between max-w-4xl mx-auto">
-        <div className="flex items-center gap-2"><DollarSign className="w-6 h-6 text-orange-500" /><h2 className="text-white font-bold">Caisse {profil?.user?.nom?`- ${profil.user.nom}`:''} - {commandes.length}</h2></div>
-        <div className="flex gap-2">
-          <button onClick={changeCode} className="bg-zinc-800 text-white px-2 py-1 rounded-lg text-xs flex items-center gap-1"><Settings className="w-3 h-3"/>Code</button>
-          <button onClick={load} className="bg-zinc-800 text-white px-3 py-1 rounded-lg text-xs">Refresh</button>
-          <button onClick={onLogout} className="bg-white text-black px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1"><LogOut className="w-3 h-3"/>Logout</button>
-        </div>
-      </div>
-      <div className="p-4 max-w-4xl mx-auto space-y-3">
-        {commandes.length===0? <div className="text-center py-20 text-gray-600">Khawya ✅<div className="text-xs mt-2">Aucune commande pret</div></div> : commandes.map((c:any)=>{
-          const totalReel = Number(c.total||0);
-          const method = selectedMethod[c.id] || 'espece';
-          const percent = remiseMap[c.id] || 0;
-          const totalFinal = method==='offert'?0: method==='remise'? totalReel - totalReel*percent/100 : totalReel;
-          return (
-          <div key={c.id} className="bg-[#1A1A1A] rounded-2xl p-4 border border-gray-800">
-            <div className="flex justify-between mb-2"><div><div className="text-white font-bold">Table {c.table_numero} - {c.statut}</div><div className="text-gray-400 text-xs mt-1">{c.items?.map((it:any)=> `${it.qte||it.quantite||1}x ${it.menu_nom||it.nom||'Plat'}`).join(' + ')}</div></div><div className="text-right"><div className="text-xl font-black text-orange-500">{totalFinal.toFixed(0)} DH {percent>0&&<span className="text-xs text-yellow-400">(-{percent}%)</span>}</div><button onClick={()=>printDoubleTicket(c)} className="text-[10px] bg-zinc-800 px-2 py-1 rounded mt-1 flex items-center gap-1"><Printer className="w-3 h-3"/>2x TICKETS (2 pages)</button></div></div>
-            <div className="grid grid-cols-5 gap-2 mb-2">
-              <button onClick={()=>setSelectedMethod({...selectedMethod,[c.id]:'espece'})} className={`py-2.5 rounded-xl text-[11px] font-bold ${method==='espece'?'bg-white text-black':'bg-green-600 text-white'}`}>ESPECE</button>
-              <button onClick={()=>setSelectedMethod({...selectedMethod,[c.id]:'tpe'})} className={`py-2.5 rounded-xl text-[11px] font-bold ${method==='tpe'?'bg-white text-black':'bg-blue-600 text-white'}`}>TPE</button>
-              <button onClick={()=>setSelectedMethod({...selectedMethod,[c.id]:'cheque'})} className={`py-2.5 rounded-xl text-[11px] font-bold ${method==='cheque'?'bg-white text-black':'bg-purple-600 text-white'}`}>CHEQUE</button>
-              <button onClick={()=>setSelectedMethod({...selectedMethod,[c.id]:'offert'})} className={`py-2.5 rounded-xl text-[11px] font-bold ${method==='offert'?'bg-white text-black':'bg-orange-600 text-white'}`}>OFFERT</button>
-              <button onClick={()=>{
-                const code=prompt(`Code Patron? (daba: ${getCode()})`);
-                if(code!==getCode()) return alert('Code ghalat!');
-                setShowRemiseFor(c.id);
-              }} className="py-2.5 rounded-xl text-[11px] font-bold bg-zinc-800 border-2 border-yellow-500 text-yellow-400">REMISE</button>
-            </div>
-            {showRemiseFor===c.id &&
-              <div className="bg-black border-2 border-yellow-600 rounded-xl p-3 mb-3">
-                <div className="text-yellow-400 font-bold text-sm mb-2">Remise Libre - Patron:</div>
-                <div className="grid grid-cols-4 gap-2 mb-3">
-                  {[5,10,15,20,25,30,40,50].map(p=><button key={p} onClick={()=>{setSelectedMethod({...selectedMethod,[c.id]:'remise'}); setRemiseMap({...remiseMap,[c.id]:p}); setShowRemiseFor(null)}} className="bg-yellow-600 text-white py-2 rounded-lg font-bold">{p}%</button>)}
-                </div>
-                <div className="flex gap-2">
-                  <input type="number" value={customRemise} onChange={e=>setCustomRemise(e.target.value)} placeholder="% libre ex: 7" className="flex-1 bg-zinc-900 border border-yellow-600 rounded-xl px-3 py-3 text-white font-bold text-center"/>
-                  <button onClick={()=>{
-                    const p=parseFloat(customRemise);
-                    if(!p || p<0 || p>100) return alert('0-100%');
-                    setSelectedMethod({...selectedMethod,[c.id]:'remise'}); setRemiseMap({...remiseMap,[c.id]:p}); setShowRemiseFor(null);
-                  }} className="bg-white text-black px-5 rounded-xl font-black">OK {customRemise}%</button>
-                </div>
-                <button onClick={()=>setShowRemiseFor(null)} className="w-full bg-zinc-800 py-2 rounded-lg mt-2 text-sm">Annuler</button>
-              </div>
-            }
-            <button onClick={()=>handlePay(c)} disabled={paying===c.id} className="w-full py-3 rounded-xl font-bold bg-green-600 text-white">{paying===c.id?'...':`PAYER ${totalFinal.toFixed(0)} DH (${method.toUpperCase()}${method==='remise'?` ${percent}%`:''})`}</button>
-          </div>
-        )})}
-      </div>
-    </div>
-  );
-}
