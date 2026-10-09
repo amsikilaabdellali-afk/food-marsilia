@@ -129,49 +129,41 @@ function RapportsTab(){
   useEffect(()=>{load();},[load]);
   const getTableLabel=(c:any)=>{const t=tableMap[c.table_id]; if(t) return `Table ${t.numero} - ${t.etage||'RDC'}`; if(c.table_numero) return `Table ${c.table_numero}`; return 'Table?';};
 
-  // JDID - SUPPORT MIXTE
-  const calcTotals = () => {
-    let espece=0, tpe=0, cheque=0, offert=0, remise=0, mixteCount=0;
-    let especeMixte=0, tpeMixte=0, chequeMixte=0, offertMixte=0;
+  const getModeName = (method:string, perc?:number) => {
+    const m = (method||'espece').toLowerCase();
+    if(m==='remise') return `REMISE ${perc||0}%`;
+    return m.toUpperCase();
+  };
+
+  const totals = (() => {
+    let espece=0, tpe=0, cheque=0, offert=0, remise=0;
     cmds.forEach((c:any)=>{
       const method = (c.payment_method||c.mode_paiement||'espece').toLowerCase();
       const its = itemsMap[c.id]||[];
       if(method==='mixte'){
-        mixteCount++;
         its.forEach((it:any)=>{
           const m = (it.payment_method||'espece').toLowerCase();
           const prix = Number(it.qte||1)*Number(it.prix||0);
-          const p = Number(it.remise_percent||0);
-          const finalP = m==='offert'?0: m==='remise'? prix - prix*p/100 : prix;
-          if(m==='espece') especeMixte+=finalP;
-          else if(m==='tpe') tpeMixte+=finalP;
-          else if(m==='cheque') chequeMixte+=finalP;
-          else if(m==='offert') offertMixte+=prix;
+          const perc = Number(it.remise_percent||0);
+          const finalP = m==='offert'?0: m==='remise'? prix - prix*perc/100 : prix;
+          if(m==='espece') espece+=finalP;
+          else if(m==='tpe') tpe+=finalP;
+          else if(m==='cheque') cheque+=finalP;
+          else if(m==='offert') offert+=prix;
           else if(m==='remise') remise+=finalP;
         });
       } else {
-        const total = Number(c.total_final??c.total??0);
-        const totalReel = Number(c.total??0);
-        if(method==='espece') espece+=total;
-        else if(method==='tpe') tpe+=total;
-        else if(method==='cheque') cheque+=total;
-        else if(method==='offert') offert+=totalReel;
-        else if(method==='remise') remise+=total;
+        const tot = Number(c.total_final??c.total??0);
+        const totReel = Number(c.total??0);
+        if(method==='espece') espece+=tot;
+        else if(method==='tpe') tpe+=tot;
+        else if(method==='cheque') cheque+=tot;
+        else if(method==='offert') offert+=totReel;
+        else if(method==='remise') remise+=tot;
       }
     });
-    return {
-      espece: espece+especeMixte,
-      tpe: tpe+tpeMixte,
-      cheque: cheque+chequeMixte,
-      offert: offert+offertMixte,
-      remise,
-      mixteCount,
-      especeMixte, tpeMixte, chequeMixte, offertMixte,
-      especeSimple: espece, tpeSimple: tpe
-    };
-  };
-  const totals = calcTotals();
-  const totalEncaisse = totals.espece + totals.tpe + totals.cheque + totals.remise;
+    return {espece,tpe,cheque,offert,remise, total:espece+tpe+cheque+remise};
+  })();
 
   const groups:any = {
     espece: cmds.filter(c=>(c.payment_method||c.mode_paiement||'espece').toLowerCase()==='espece'),
@@ -188,24 +180,24 @@ function RapportsTab(){
   if(loading) return <div className="p-8 text-center">Chargement...</div>;
   return <div>
     <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-3 mb-2"/>
-    <div className="bg-zinc-900 rounded-2xl p-4 text-center font-black text-xl mb-3 border border-zinc-700">{totalEncaisse.toFixed(0)} DH - {cmds.length} cmd {totals.mixteCount>0?`(+${totals.mixteCount} MIXTE)`:''}</div>
+    <div className="bg-zinc-900 rounded-2xl p-4 text-center font-black text-xl mb-3 border border-zinc-700">{totals.total.toFixed(0)} DH - {cmds.length} cmd {groups.mixte.length>0?`(${groups.mixte.length} MIXTE)`:''}</div>
 
     <div className="grid grid-cols-2 gap-2 mb-4 text-center">
-      <div className="bg-green-900/30 border border-green-700 rounded-xl p-3"><div className="text-[10px] text-green-300">ESPECE {totals.especeMixte>0?`(+${totals.especeMixte.toFixed(0)} mixte)`:''}</div><div className="font-bold text-green-400">{totals.espece.toFixed(0)} DH</div><div className="text-xs">{groups.espece.length + (totals.especeMixte>0?1:0)} tickets</div></div>
-      <div className="bg-blue-900/30 border border-blue-700 rounded-xl p-3"><div className="text-[10px] text-blue-300">TPE {totals.tpeMixte>0?`(+${totals.tpeMixte.toFixed(0)} mixte)`:''}</div><div className="font-bold text-blue-400">{totals.tpe.toFixed(0)} DH</div><div className="text-xs">{groups.tpe.length}</div></div>
+      <div className="bg-green-900/30 border border-green-700 rounded-xl p-3"><div className="text-[10px] text-green-300">ESPECE</div><div className="font-bold text-green-400">{totals.espece.toFixed(0)} DH</div><div className="text-xs">{groups.espece.length}</div></div>
+      <div className="bg-blue-900/30 border border-blue-700 rounded-xl p-3"><div className="text-[10px] text-blue-300">TPE</div><div className="font-bold text-blue-400">{totals.tpe.toFixed(0)} DH</div><div className="text-xs">{groups.tpe.length}</div></div>
       <div className="bg-purple-900/30 border border-purple-700 rounded-xl p-3"><div className="text-[10px] text-purple-300">CHEQUE</div><div className="font-bold text-purple-400">{totals.cheque.toFixed(0)} DH</div><div className="text-xs">{groups.cheque.length}</div></div>
-      <div className="bg-yellow-900/40 border-2 border-yellow-500 rounded-xl p-3"><div className="text-[10px] text-yellow-300 font-black">REMISE</div><div className="font-bold text-yellow-400">{totals.remise.toFixed(0)} DH</div><div className="text-xs">{groups.remise.length + groups.mixte.length}</div></div>
+      <div className="bg-yellow-900/40 border-2 border-yellow-500 rounded-xl p-3"><div className="text-[10px] text-yellow-300 font-black">REMISE</div><div className="font-bold text-yellow-400">{totals.remise.toFixed(0)} DH</div><div className="text-xs">{groups.remise.length}</div></div>
       <div className="bg-orange-900/30 border border-orange-700 rounded-xl p-3 col-span-1"><div className="text-[10px] text-orange-300">OFFERT</div><div className="font-bold text-orange-400">{totals.offert.toFixed(0)} DH perdu</div><div className="text-xs">{groups.offert.length} cmd</div></div>
-      <div className="bg-white/10 border-2 border-orange-500 rounded-xl p-3 col-span-1"><div className="text-[10px] text-orange-300 font-black">MIXTE</div><div className="font-bold text-white">{groups.mixte.length} tickets</div><div className="text-xs">{totals.especeMixte+totals.tpeMixte+totals.chequeMixte} DH encaissé mixte</div></div>
+      <div className="bg-white/10 border-2 border-orange-500 rounded-xl p-3 col-span-1"><div className="text-[10px] text-white font-black">MIXTE</div><div className="font-bold text-white">{groups.mixte.length} tickets</div><div className="text-xs">{groups.mixte.reduce((s:any,c:any)=>s+Number(c.total_final??c.total??0),0).toFixed(0)} DH</div></div>
     </div>
 
-    <div>{Object.entries(groups).map(([k,list]:any)=>{ if(!list.length) return null; let title=''; let border=''; let total=0;
-      if(k==='espece'){title=`ESPECE (${list.length}) - ${sum(list).toFixed(0)} DH`;border='border-green-600';total=sum(list);}
-      if(k==='tpe'){title=`TPE (${list.length}) - ${sum(list).toFixed(0)} DH`;border='border-blue-600';total=sum(list);}
-      if(k==='cheque'){title=`CHEQUE (${list.length}) - ${sum(list).toFixed(0)} DH`;border='border-purple-600';total=sum(list);}
-      if(k==='remise'){title=`REMISE (${list.length}) - ${sum(list).toFixed(0)} DH`;border='border-yellow-500';total=sum(list);}
-      if(k==='offert'){title=`OFFERT (${list.length}) - ${sumReel(list).toFixed(0)} DH perdu`;border='border-orange-600';total=sumReel(list);}
-      if(k==='mixte'){title=`🎫 MIXTE (${list.length}) - ${totals.especeMixte+totals.tpeMixte+totals.chequeMixte+totals.remise} DH`;border='border-white';total=totals.especeMixte+totals.tpeMixte+totals.chequeMixte;}
-      return <div key={k} className={`border-l-4 ${border} pl-2 mb-5`}><h3 className="font-black py-2 text-sm">{title}</h3>{list.map((c:any)=>{const its=itemsMap[c.id]||[];return <div key={c.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 mb-2"><div className="flex justify-between font-bold text-sm"><span>{getTableLabel(c)} - {c.serveur_nom||'?'}</span><span className="text-orange-400">{Number(c.total_final??c.total??0).toFixed(0)} DH</span></div><div className="text-[11px] text-zinc-500">{new Date(c.paye_at||c.created_at).toLocaleTimeString()} - {c.payment_method||c.mode_paiement} {k==='mixte'?'🧾 MIXTE':''}</div><div className="mt-2 bg-black/60 rounded-lg p-2">{its.map((it:any)=><div key={it.id} className="flex justify-between py-1.5 text-sm border-b border-zinc-800 last:border-0"><span>{it.qte||1}x {it.menu_nom||it.nom||'Plat'} {k==='mixte'?<span className={`ml-2 text-[9px] px-2 py-0.5 rounded-full font-black ${it.payment_method==='espece'?'bg-green-600':it.payment_method==='tpe'?'bg-blue-600':it.payment_method==='offert'?'bg-orange-600':'bg-yellow-600'}`}>{it.payment_method?.toUpperCase()} {it.remise_percent?`-${it.remise_percent}%`:''}</span>:''}</span><span className="font-bold">{(Number(it.qte||1)*Number(it.prix||0)).toFixed(0)} DH</span></div>)}</div></div>})}</div>})}</div>
+    <div>{Object.entries(groups).map(([k,list]:any)=>{ if(!list.length) return null; let title=''; let border='';
+      if(k==='espece'){title=`ESPECE (${list.length}) - ${sum(list).toFixed(0)} DH`;border='border-green-600';}
+      if(k==='tpe'){title=`TPE (${list.length}) - ${sum(list).toFixed(0)} DH`;border='border-blue-600';}
+      if(k==='cheque'){title=`CHEQUE (${list.length}) - ${sum(list).toFixed(0)} DH`;border='border-purple-600';}
+      if(k==='remise'){title=`REMISE (${list.length}) - ${sum(list).toFixed(0)} DH`;border='border-yellow-500';}
+      if(k==='offert'){title=`OFFERT (${list.length}) - ${sumReel(list).toFixed(0)} DH perdu`;border='border-orange-600';}
+      if(k==='mixte'){title=`MIXTE (${list.length}) - ${list.reduce((s:any,c:any)=>s+Number(c.total_final??c.total??0),0).toFixed(0)} DH`;border='border-white';}
+      return <div key={k} className={`border-l-4 ${border} pl-2 mb-5`}><h3 className="font-black py-2 text-sm">{title}</h3>{list.map((c:any)=>{const its=itemsMap[c.id]||[];return <div key={c.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 mb-2"><div className="flex justify-between font-bold text-sm"><span>{getTableLabel(c)} - {c.serveur_nom||'abdellali'}</span><span className="text-orange-400">{Number(c.total_final??c.total??0).toFixed(0)} DH</span></div><div className="text-[11px] text-zinc-500">{new Date(c.paye_at||c.created_at).toLocaleTimeString()} - {c.payment_method||c.mode_paiement}</div><div className="mt-2 bg-black/60 rounded-lg p-2">{its.map((it:any)=><div key={it.id} className="flex justify-between py-2 text-sm border-b border-zinc-800 last:border-0"><span>{it.qte||1}x {it.menu_nom||it.nom||'Plat'} - {getModeName(it.payment_method, it.remise_percent)}</span><span>{(Number(it.qte||1)*Number(it.prix||0)).toFixed(0)} DH</span></div>)}</div></div>})}</div>})}</div>
   </div>
 }
