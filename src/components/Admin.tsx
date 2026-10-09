@@ -102,6 +102,7 @@ function CategoriesTab(){const [cats,setCats]=useState<any[]>([]);const [show,se
 function CatForm({cat,onClose,onSaved}:any){const [nom,setNom]=useState(cat?.nom||'');const [label,setLabel]=useState(cat?.label||'');const save=async()=>{if(!nom||!label) return alert('Nom+Label');const p={nom:nom.toLowerCase().replace(/\s/g,'_'),label,ordre:1};if(cat) await supabase.from('categories').update(p).eq('id',cat.id);else await supabase.from('categories').insert(p);onSaved();onClose();};return <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"><div className="bg-zinc-900 rounded-2xl w-full max-w-md border border-zinc-800 p-5 space-y-3"><input value={label} onChange={e=>{setLabel(e.target.value);if(!cat) setNom(e.target.value.toLowerCase().replace(/\s/g,'_'));}} placeholder="Label" className="w-full bg-black p-3 rounded-xl border border-zinc-700"/><input value={nom} onChange={e=>setNom(e.target.value)} placeholder="nom" className="w-full bg-black p-3 rounded-xl border border-zinc-700 text-xs"/><div className="flex gap-2"><button onClick={onClose} className="flex-1 bg-zinc-800 py-3 rounded-xl">Annuler</button><button onClick={save} className="flex-1 bg-orange-600 py-3 rounded-xl font-bold">Sauver</button></div></div></div>}
 function UsersTab(){const [users,setUsers]=useState<any[]>([]);const [show,setShow]=useState(false);const [edit,setEdit]=useState<any>(null);const load=useCallback(async()=>{const {data}=await supabase.from('utilisateurs').select('*').order('created_at',{ascending:false});setUsers(data||[]);},[]);useEffect(()=>{load();},[load]);return <div><div className="flex justify-between mb-3"><h2 className="font-bold">Users {users.length}</h2><button onClick={()=>{setEdit(null);setShow(true);}} className="bg-orange-600 px-4 py-2 rounded-xl font-bold">+ User</button></div>{users.map((u:any)=><div key={u.id} className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 flex justify-between mb-2"><div><div className="font-bold">{u.nom} <span className="text-xs bg-zinc-800 px-2 py-1 rounded-lg ml-2">{u.role}</span></div><div className="text-xs text-zinc-500">ID: {u.identifiant} | {u.code_acces}</div></div><div className="flex gap-1"><button onClick={()=>{setEdit(u);setShow(true);}} className="p-2.5 bg-zinc-800 rounded-xl"><Edit3 className="w-4 h-4"/></button><button onClick={async()=>{if(confirm('Supprimer?')){await supabase.from('utilisateurs').delete().eq('id',u.id);load();}}} className="p-2.5 bg-red-900 rounded-xl"><Trash2 className="w-4 h-4"/></button></div></div>)}{show&&<UserForm user={edit} onClose={()=>{setShow(false);setEdit(null);}} onSaved={load}/>}</div>}
 function UserForm({user,onClose,onSaved}:any){const [nom,setNom]=useState(user?.nom||'');const [ident,setIdent]=useState(user?.identifiant||'');const [code,setCode]=useState(user?.code_acces||'');const [role,setRole]=useState(user?.role||'serveur');const [restId,setRestId]=useState(user?.restaurant_id||'');useEffect(()=>{ if(!restId){ supabase.from('restaurants').select('id').limit(1).single().then(({data})=>{ if(data) setRestId(data.id); }); } },[]);const save=async()=>{ if(!nom||!ident||!code) return alert('3amar'); const payload:any={ nom, identifiant: ident.trim(), code_acces: code.trim(), role, restaurant_id: restId }; if(!restId){ const {data:rest}=await supabase.from('restaurants').select('id').limit(1).single(); if(rest) payload.restaurant_id=rest.id; } let error; if(user){ const res=await supabase.from('utilisateurs').update(payload).eq('id',user.id); error=res.error; } else { const res=await supabase.from('utilisateurs').insert(payload); error=res.error; } if(error){ alert(error.message); return; } onSaved(); onClose(); };return <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"><div className="bg-zinc-900 rounded-2xl w-full max-w-md border border-zinc-800 p-5 space-y-3"><div className="flex justify-between"><h3 className="font-bold">{user?'Modifier':'Nouveau'} User</h3><button onClick={onClose}><X className="w-5 h-5"/></button></div><input value={nom} onChange={e=>setNom(e.target.value)} placeholder="Nom" className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"/><input value={ident} onChange={e=>setIdent(e.target.value)} placeholder="Identifiant" className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"/><input value={code} onChange={e=>setCode(e.target.value)} placeholder="Code" className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"/><select value={role} onChange={e=>setRole(e.target.value)} className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"><option value="admin">admin</option><option value="serveur">serveur</option><option value="cuisine">cuisine</option><option value="caisse">caisse</option></select><div className="flex gap-2"><button onClick={onClose} className="flex-1 bg-zinc-800 py-3.5 rounded-xl">Annuler</button><button onClick={save} className="flex-1 bg-orange-600 py-3.5 rounded-xl font-bold">Sauver</button></div></div></div>}
+
 function RapportsTab(){
   const [date,setDate]=useState(new Date().toISOString().split('T')[0]);
   const [cmds,setCmds]=useState<any[]>([]);
@@ -127,21 +128,84 @@ function RapportsTab(){
   },[date]);
   useEffect(()=>{load();},[load]);
   const getTableLabel=(c:any)=>{const t=tableMap[c.table_id]; if(t) return `Table ${t.numero} - ${t.etage||'RDC'}`; if(c.table_numero) return `Table ${c.table_numero}`; return 'Table?';};
-  const groups={ espece:cmds.filter(c=>(c.payment_method||c.mode_paiement||'espece').toLowerCase()==='espece'), tpe:cmds.filter(c=>(c.payment_method||c.mode_paiement||'').toLowerCase()==='tpe'), cheque:cmds.filter(c=>(c.payment_method||c.mode_paiement||'').toLowerCase()==='cheque'), offert:cmds.filter(c=>(c.payment_method||c.mode_paiement||'').toLowerCase()==='offert'), remise:cmds.filter(c=>(c.payment_method||c.mode_paiement||'').toLowerCase()==='remise'), };
+
+  // JDID - SUPPORT MIXTE
+  const calcTotals = () => {
+    let espece=0, tpe=0, cheque=0, offert=0, remise=0, mixteCount=0;
+    let especeMixte=0, tpeMixte=0, chequeMixte=0, offertMixte=0;
+    cmds.forEach((c:any)=>{
+      const method = (c.payment_method||c.mode_paiement||'espece').toLowerCase();
+      const its = itemsMap[c.id]||[];
+      if(method==='mixte'){
+        mixteCount++;
+        its.forEach((it:any)=>{
+          const m = (it.payment_method||'espece').toLowerCase();
+          const prix = Number(it.qte||1)*Number(it.prix||0);
+          const p = Number(it.remise_percent||0);
+          const finalP = m==='offert'?0: m==='remise'? prix - prix*p/100 : prix;
+          if(m==='espece') especeMixte+=finalP;
+          else if(m==='tpe') tpeMixte+=finalP;
+          else if(m==='cheque') chequeMixte+=finalP;
+          else if(m==='offert') offertMixte+=prix;
+          else if(m==='remise') remise+=finalP;
+        });
+      } else {
+        const total = Number(c.total_final??c.total??0);
+        const totalReel = Number(c.total??0);
+        if(method==='espece') espece+=total;
+        else if(method==='tpe') tpe+=total;
+        else if(method==='cheque') cheque+=total;
+        else if(method==='offert') offert+=totalReel;
+        else if(method==='remise') remise+=total;
+      }
+    });
+    return {
+      espece: espece+especeMixte,
+      tpe: tpe+tpeMixte,
+      cheque: cheque+chequeMixte,
+      offert: offert+offertMixte,
+      remise,
+      mixteCount,
+      especeMixte, tpeMixte, chequeMixte, offertMixte,
+      especeSimple: espece, tpeSimple: tpe
+    };
+  };
+  const totals = calcTotals();
+  const totalEncaisse = totals.espece + totals.tpe + totals.cheque + totals.remise;
+
+  const groups:any = {
+    espece: cmds.filter(c=>(c.payment_method||c.mode_paiement||'espece').toLowerCase()==='espece'),
+    tpe: cmds.filter(c=>(c.payment_method||c.mode_paiement||'').toLowerCase()==='tpe'),
+    cheque: cmds.filter(c=>(c.payment_method||c.mode_paiement||'').toLowerCase()==='cheque'),
+    offert: cmds.filter(c=>(c.payment_method||c.mode_paiement||'').toLowerCase()==='offert'),
+    remise: cmds.filter(c=>(c.payment_method||c.mode_paiement||'').toLowerCase()==='remise'),
+    mixte: cmds.filter(c=>(c.payment_method||c.mode_paiement||'').toLowerCase()==='mixte'),
+  };
+
   const sum=(arr:any[])=>arr.reduce((s,c)=>s+Number(c.total_final??c.total??0),0);
   const sumReel=(arr:any[])=>arr.reduce((s,c)=>s+Number(c.total??0),0);
-  const totalEncaisse=sum(groups.espece)+sum(groups.tpe)+sum(groups.cheque)+sum(groups.remise);
+
   if(loading) return <div className="p-8 text-center">Chargement...</div>;
   return <div>
     <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-3 mb-2"/>
-    <div className="bg-zinc-900 rounded-2xl p-4 text-center font-black text-xl mb-3 border border-zinc-700">{totalEncaisse.toFixed(0)} DH - {cmds.length} cmd</div>
+    <div className="bg-zinc-900 rounded-2xl p-4 text-center font-black text-xl mb-3 border border-zinc-700">{totalEncaisse.toFixed(0)} DH - {cmds.length} cmd {totals.mixteCount>0?`(+${totals.mixteCount} MIXTE)`:''}</div>
+
     <div className="grid grid-cols-2 gap-2 mb-4 text-center">
-      <div className="bg-green-900/30 border border-green-700 rounded-xl p-3"><div className="text-[10px] text-green-300">ESPECE</div><div className="font-bold text-green-400">{sum(groups.espece).toFixed(0)} DH</div><div className="text-xs">{groups.espece.length}</div></div>
-      <div className="bg-blue-900/30 border border-blue-700 rounded-xl p-3"><div className="text-[10px] text-blue-300">TPE</div><div className="font-bold text-blue-400">{sum(groups.tpe).toFixed(0)} DH</div><div className="text-xs">{groups.tpe.length}</div></div>
-      <div className="bg-purple-900/30 border border-purple-700 rounded-xl p-3"><div className="text-[10px] text-purple-300">CHEQUE</div><div className="font-bold text-purple-400">{sum(groups.cheque).toFixed(0)} DH</div><div className="text-xs">{groups.cheque.length}</div></div>
-      <div className="bg-yellow-900/40 border-2 border-yellow-500 rounded-xl p-3"><div className="text-[10px] text-yellow-300 font-black">REMISE</div><div className="font-bold text-yellow-400">{sum(groups.remise).toFixed(0)} DH</div><div className="text-xs">{groups.remise.length}</div></div>
-      <div className="bg-orange-900/30 border border-orange-700 rounded-xl p-3 col-span-2"><div className="text-[10px] text-orange-300">OFFERT</div><div className="font-bold text-orange-400">{sumReel(groups.offert).toFixed(0)} DH perdu</div><div className="text-xs">{groups.offert.length} cmd</div></div>
+      <div className="bg-green-900/30 border border-green-700 rounded-xl p-3"><div className="text-[10px] text-green-300">ESPECE {totals.especeMixte>0?`(+${totals.especeMixte.toFixed(0)} mixte)`:''}</div><div className="font-bold text-green-400">{totals.espece.toFixed(0)} DH</div><div className="text-xs">{groups.espece.length + (totals.especeMixte>0?1:0)} tickets</div></div>
+      <div className="bg-blue-900/30 border border-blue-700 rounded-xl p-3"><div className="text-[10px] text-blue-300">TPE {totals.tpeMixte>0?`(+${totals.tpeMixte.toFixed(0)} mixte)`:''}</div><div className="font-bold text-blue-400">{totals.tpe.toFixed(0)} DH</div><div className="text-xs">{groups.tpe.length}</div></div>
+      <div className="bg-purple-900/30 border border-purple-700 rounded-xl p-3"><div className="text-[10px] text-purple-300">CHEQUE</div><div className="font-bold text-purple-400">{totals.cheque.toFixed(0)} DH</div><div className="text-xs">{groups.cheque.length}</div></div>
+      <div className="bg-yellow-900/40 border-2 border-yellow-500 rounded-xl p-3"><div className="text-[10px] text-yellow-300 font-black">REMISE</div><div className="font-bold text-yellow-400">{totals.remise.toFixed(0)} DH</div><div className="text-xs">{groups.remise.length + groups.mixte.length}</div></div>
+      <div className="bg-orange-900/30 border border-orange-700 rounded-xl p-3 col-span-1"><div className="text-[10px] text-orange-300">OFFERT</div><div className="font-bold text-orange-400">{totals.offert.toFixed(0)} DH perdu</div><div className="text-xs">{groups.offert.length} cmd</div></div>
+      <div className="bg-white/10 border-2 border-orange-500 rounded-xl p-3 col-span-1"><div className="text-[10px] text-orange-300 font-black">MIXTE</div><div className="font-bold text-white">{groups.mixte.length} tickets</div><div className="text-xs">{totals.especeMixte+totals.tpeMixte+totals.chequeMixte} DH encaissé mixte</div></div>
     </div>
-    <div>{Object.entries(groups).map(([k,list]:any)=>{ if(!list.length) return null; let title=''; let border=''; if(k==='espece'){title=`ESPECE (${list.length}) - ${sum(list).toFixed(0)} DH`;border='border-green-600';} if(k==='tpe'){title=`TPE (${list.length}) - ${sum(list).toFixed(0)} DH`;border='border-blue-600';} if(k==='cheque'){title=`CHEQUE (${list.length}) - ${sum(list).toFixed(0)} DH`;border='border-purple-600';} if(k==='remise'){title=`REMISE (${list.length}) - ${sum(list).toFixed(0)} DH`;border='border-yellow-500';} if(k==='offert'){title=`OFFERT (${list.length}) - ${sumReel(list).toFixed(0)} DH perdu`;border='border-orange-600';} return <div key={k} className={`border-l-4 ${border} pl-2 mb-5`}><h3 className="font-black py-2 text-sm">{title}</h3>{list.map((c:any)=>{const its=itemsMap[c.id]||[];return <div key={c.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 mb-2"><div className="flex justify-between font-bold text-sm"><span>{getTableLabel(c)} - {c.serveur_nom||'?'}</span><span className="text-orange-400">{Number(c.total_final??c.total??0).toFixed(0)} DH</span></div><div className="text-[11px] text-zinc-500">{new Date(c.paye_at||c.created_at).toLocaleTimeString()} - {c.payment_method||c.mode_paiement}</div><div className="mt-2 bg-black/60 rounded-lg p-2">{its.map((it:any)=><div key={it.id} className="flex justify-between py-1 text-sm border-b border-zinc-800 last:border-0"><span>{it.qte||1}x {it.menu_nom||it.nom||'Plat'}</span><span>{(Number(it.qte||1)*Number(it.prix||0)).toFixed(0)} DH</span></div>)}</div></div>})}</div>})}</div>
+
+    <div>{Object.entries(groups).map(([k,list]:any)=>{ if(!list.length) return null; let title=''; let border=''; let total=0;
+      if(k==='espece'){title=`ESPECE (${list.length}) - ${sum(list).toFixed(0)} DH`;border='border-green-600';total=sum(list);}
+      if(k==='tpe'){title=`TPE (${list.length}) - ${sum(list).toFixed(0)} DH`;border='border-blue-600';total=sum(list);}
+      if(k==='cheque'){title=`CHEQUE (${list.length}) - ${sum(list).toFixed(0)} DH`;border='border-purple-600';total=sum(list);}
+      if(k==='remise'){title=`REMISE (${list.length}) - ${sum(list).toFixed(0)} DH`;border='border-yellow-500';total=sum(list);}
+      if(k==='offert'){title=`OFFERT (${list.length}) - ${sumReel(list).toFixed(0)} DH perdu`;border='border-orange-600';total=sumReel(list);}
+      if(k==='mixte'){title=`🎫 MIXTE (${list.length}) - ${totals.especeMixte+totals.tpeMixte+totals.chequeMixte+totals.remise} DH`;border='border-white';total=totals.especeMixte+totals.tpeMixte+totals.chequeMixte;}
+      return <div key={k} className={`border-l-4 ${border} pl-2 mb-5`}><h3 className="font-black py-2 text-sm">{title}</h3>{list.map((c:any)=>{const its=itemsMap[c.id]||[];return <div key={c.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 mb-2"><div className="flex justify-between font-bold text-sm"><span>{getTableLabel(c)} - {c.serveur_nom||'?'}</span><span className="text-orange-400">{Number(c.total_final??c.total??0).toFixed(0)} DH</span></div><div className="text-[11px] text-zinc-500">{new Date(c.paye_at||c.created_at).toLocaleTimeString()} - {c.payment_method||c.mode_paiement} {k==='mixte'?'🧾 MIXTE':''}</div><div className="mt-2 bg-black/60 rounded-lg p-2">{its.map((it:any)=><div key={it.id} className="flex justify-between py-1.5 text-sm border-b border-zinc-800 last:border-0"><span>{it.qte||1}x {it.menu_nom||it.nom||'Plat'} {k==='mixte'?<span className={`ml-2 text-[9px] px-2 py-0.5 rounded-full font-black ${it.payment_method==='espece'?'bg-green-600':it.payment_method==='tpe'?'bg-blue-600':it.payment_method==='offert'?'bg-orange-600':'bg-yellow-600'}`}>{it.payment_method?.toUpperCase()} {it.remise_percent?`-${it.remise_percent}%`:''}</span>:''}</span><span className="font-bold">{(Number(it.qte||1)*Number(it.prix||0)).toFixed(0)} DH</span></div>)}</div></div>})}</div>})}</div>
   </div>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   }
+}
