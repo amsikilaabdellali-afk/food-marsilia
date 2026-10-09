@@ -15,18 +15,22 @@ export default function Caisse({ profil, onLogout }: any) {
   const [modePaiement, setModePaiement] = useState<Record<string, 'total' | 'articles'>>({});
 
   const getCode = () => localStorage.getItem('remise_code') || '1234';
+
   const changeCode = () => {
-    const oldCode = prompt('Code 9dim (default 1234):');
-    if (oldCode!== getCode()) return alert('Code ghalat! Code daba: ' + getCode());
-    const newCode = prompt('Code jdid (ex: 2026):');
+    const oldCode = prompt('Dakhal Code 9dim:');
+    if (oldCode!== getCode()) return alert('Code ghalat!');
+    const newCode = prompt('Dakhal Code jdid (ex: 2026):');
     if (!newCode) return;
+    if (newCode.length < 4) return alert('Code khasso 4 ar9am minimum');
     localStorage.setItem('remise_code', newCode);
-    alert('Code t-badal: ' + newCode);
+    alert('Code t-badal b-najah ✅');
   };
 
   const getTotalAPayer = (cmd:any) => {
     const mode = modePaiement[cmd.id] || 'total';
-    if(mode === 'total') return Number(cmd.total||0);
+    if(mode === 'total'){
+      return cmd.items.reduce((s:number,it:any)=> s + Number(it.prix||0)*(it.qte||it.quantite||1), 0);
+    }
     let total = 0;
     cmd.items?.forEach((it:any)=>{
       const key = `${cmd.id}-${it.id}`;
@@ -69,9 +73,10 @@ export default function Caisse({ profil, onLogout }: any) {
       const { data: items } = await supabase.from('commande_items').select('*').in('commande_id', ids);
       const tableIds = finalCmds.map((c:any)=>c.table_id).filter(Boolean);
       let tables:any[]=[]; if(tableIds.length){ const {data} = await supabase.from('tables').select('*').in('id', tableIds); tables=data||[]; }
-      const itemsMap:any={}; (items||[]).forEach((it:any)=>{ (itemsMap[it.commande_id]=itemsMap[it.commande_id]||[]).push(it); });
+      const itemsMap:any={}; (items||[]).forEach((it:any)=>{ if(it.statut==='paye') return; (itemsMap[it.commande_id]=itemsMap[it.commande_id]||[]).push(it); });
       const tableMap:any={}; tables.forEach((t:any)=>{ tableMap[t.id]=t; });
-      const result = finalCmds.map((c:any)=>({...c, items: itemsMap[c.id]||[], table_numero: c.table_id? tableMap[c.table_id]?.numero?? '?' : '?'}));
+      const result = finalCmds.map((c:any)=>({...c, items: itemsMap[c.id]||[], table_numero: c.table_id? tableMap[c.table_id]?.numero?? '?' : '?'}))
+     .filter((c:any)=> c.items.length>0);
       setCommandes(result);
     } else setCommandes([]);
     setLoading(false);
@@ -90,16 +95,17 @@ export default function Caisse({ profil, onLogout }: any) {
       totalReel = itemsToPay.reduce((s:number,it:any)=> s + Number(it.prix||0)*(it.qte||it.quantite||1), 0);
     } else {
       itemsToPay = cmd.items;
-      totalReel = Number(cmd.total||0);
+      totalReel = cmd.items.reduce((s:number,it:any)=> s + Number(it.prix||0)*(it.qte||it.quantite||1), 0);
     }
-    if(totalReel===0) return alert('Total 0 DH!');
-    if(!confirm(`Confirmer Table ${cmd.table_numero} - ${mode==='articles'? itemsToPay.length+' articles': 'TOTAL'} : ${totalReel.toFixed(0)} DH?`)) return;
+    if(totalReel===0) return alert('Total 0!');
+    if(!confirm(`Confirmer Table ${cmd.table_numero} : ${totalReel.toFixed(0)} DH?`)) return;
     setPaying(cmd.id);
     const method = selectedMethod[cmd.id] || 'espece';
     const percent = remiseMap[cmd.id] || 0;
     let remiseMontant = 0; let totalFinal = totalReel;
     if(method==='offert'){ remiseMontant=totalReel; totalFinal=0; }
     else if(method==='remise'){ remiseMontant = totalReel * percent / 100; totalFinal = totalReel - remiseMontant; }
+
     if(mode === 'total' || itemsToPay.length === cmd.items.length){
       setCommandes(prev => prev.filter(c=>c.id!==cmd.id));
       try {
@@ -120,10 +126,10 @@ export default function Caisse({ profil, onLogout }: any) {
         if(remainingTotal>0){ await supabase.from('commandes').update({ total: remainingTotal }).eq('id', cmd.id); }
         else { await supabase.from('commandes').update({ statut:'paye' }).eq('id', cmd.id); if(cmd.table_id) await supabase.from('tables').update({statut:'libre'}).eq('id',cmd.table_id); }
         const newSelected = {...selectedItems}; idsToPay.forEach((id:any)=> delete newSelected[`${cmd.id}-${id}`]); setSelectedItems(newSelected);
-        alert(`Tkhallas ${itemsToPay.length} articles (${totalFinal.toFixed(0)} DH) - Ba9i ${remainingTotal.toFixed(0)} DH`);
+        alert(`Tkhallas ${itemsToPay.length} article(s) - Ba9i ${remainingTotal.toFixed(0)} DH`);
         printDoubleTicket({...cmd, items: itemsToPay});
         load();
-      } catch(e:any){ alert('Erreur partiel: '+e.message); }
+      } catch(e:any){ alert('Erreur: '+e.message); }
     }
     setPaying(null);
   };
@@ -150,7 +156,7 @@ export default function Caisse({ profil, onLogout }: any) {
           const selectedCount = c.items.filter((it:any)=> selectedItems[`${c.id}-${it.id}`]).length;
           return (
           <div key={c.id} className="bg-[#1A1A1A] rounded-2xl p-4 border border-gray-800">
-            <div className="flex justify-between mb-2"><div><div className="text-white font-bold">Table {c.table_numero} - {c.statut}</div><div className="text-[10px] text-gray-500 mt-1">{mode==='articles'? `${selectedCount}/${c.items.length} selectionnés` : `${c.items.length} articles`}</div></div><div className="text-right"><div className="text-xl font-black text-orange-500">{totalFinal.toFixed(0)} DH</div><button onClick={()=>printDoubleTicket(c)} className="text-[10px] bg-zinc-800 px-2 py-1 rounded mt-1 flex items-center gap-1 text-white"><Printer className="w-3 h-3"/>TICKETS</button></div></div>
+            <div className="flex justify-between mb-2"><div><div className="text-white font-bold">Table {c.table_numero} - {c.statut}</div><div className="text-[10px] text-gray-500 mt-1">{mode==='articles'? `${selectedCount}/${c.items.length} - ${totalReel.toFixed(0)} DH` : `${c.items.length} articles - ${totalReel.toFixed(0)} DH`}</div></div><div className="text-right"><div className="text-xl font-black text-orange-500">{totalFinal.toFixed(0)} DH</div><button onClick={()=>printDoubleTicket(c)} className="text-[10px] bg-zinc-800 px-2 py-1 rounded mt-1 flex items-center gap-1 text-white"><Printer className="w-3 h-3"/>TICKETS</button></div></div>
             <div className="bg-black/60 rounded-xl p-2 mb-3 border border-zinc-800">
               <div className="flex justify-between items-center mb-2"><span className="text-[10px] text-yellow-400 font-bold flex items-center gap-1"><CheckSquare className="w-3 h-3"/>ARTICLES</span><div className="flex gap-1"><button onClick={()=>setModePaiement({...modePaiement,[c.id]:'total'})} className={`text-[9px] px-3 py-1 rounded-full font-bold ${mode==='total'?'bg-white text-black':'bg-zinc-800 text-gray-400'}`}>TOTAL</button><button onClick={()=>setModePaiement({...modePaiement,[c.id]:'articles'})} className={`text-[9px] px-3 py-1 rounded-full font-bold ${mode==='articles'?'bg-orange-500 text-white':'bg-zinc-800 text-gray-400'}`}>PAR ARTICLE</button></div></div>
               {c.items?.map((it:any)=>{const key=`${c.id}-${it.id}`; const prixUnit=Number(it.prix||0); const qte=it.qte||it.quantite||1; const prixTotal=prixUnit*qte; const isChecked=selectedItems[key]; return (<label key={it.id} className={`flex justify-between items-center p-2.5 rounded-xl mb-1 cursor-pointer ${isChecked?'bg-green-900/40 border border-green-600':'bg-zinc-900'}`}><div className="flex items-center gap-2.5">{mode==='articles' && <input type="checkbox" checked={!!isChecked} onChange={(e)=>setSelectedItems({...selectedItems, [key]: e.target.checked})} className="w-4 h-4"/>}<span className="text-white text-[13px]">{qte}x {it.menu_nom||it.nom||'Plat'}</span></div><span className="text-orange-400 text-xs font-bold">{prixTotal.toFixed(0)} DH</span></label>)})}
