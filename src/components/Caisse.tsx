@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { DollarSign, Printer, LogOut, Settings } from 'lucide-react';
+import { DollarSign, LogOut, Settings } from 'lucide-react';
 
 export default function Caisse({ profil, onLogout }: any) {
   const [commandes, setCommandes] = useState<any[]>([]);
@@ -37,10 +37,10 @@ export default function Caisse({ profil, onLogout }: any) {
       const { data: items } = await supabase.from('commande_items').select('*').in('commande_id', ids);
       const tableIds = finalCmds.map((c:any)=>c.table_id).filter(Boolean);
       let tables:any[]=[]; if(tableIds.length){ const {data} = await supabase.from('tables').select('*').in('id', tableIds); tables=data||[]; }
-      const itemsMap:any={}; (items||[]).forEach((it:any)=>{ if(it.statut==='paye') return; (itemsMap[it.commande_id]=itemsMap[it.commande_id]||[]).push(it); });
+      const itemsMap:any={}; (items||[]).forEach((it:any)=>{ (itemsMap[it.commande_id]=itemsMap[it.commande_id]||[]).push(it); });
       const tableMap:any={}; tables.forEach((t:any)=>{ tableMap[t.id]=t; });
       const result = finalCmds.map((c:any)=>({...c, items: itemsMap[c.id]||[], table_numero: c.table_id? tableMap[c.table_id]?.numero?? '?' : '?'}))
-     .filter((c:any)=> c.items.length>0);
+    .filter((c:any)=> c.items.length>0);
       setCommandes(result);
     } else setCommandes([]);
     setLoading(false);
@@ -55,19 +55,27 @@ export default function Caisse({ profil, onLogout }: any) {
     setPaying(cmd.id);
     const method = selectedMethod[cmd.id] || 'espece';
     const percent = remiseMap[cmd.id] || 0;
-    let remiseMontant = 0; let totalFinal = totalReel;
-    if(method==='offert'){ remiseMontant=totalReel; totalFinal=0; }
-    else if(method==='remise'){ remiseMontant = totalReel * percent / 100; totalFinal = totalReel - remiseMontant; }
-    setCommandes(prev => prev.filter(c=>c.id!==cmd.id));
+    let totalFinal = totalReel;
+    if(method==='offert') totalFinal=0;
+    else if(method==='remise') totalFinal = totalReel - totalReel*percent/100;
     try {
       for(const it of cmd.items){
-        await supabase.from('commande_items').update({ statut:'paye', payment_method:method, remise_percent:percent, paye_at:new Date().toISOString() }).eq('id', it.id);
+        await supabase.from('commande_items').update({
+          payment_method: method,
+          remise_percent: percent,
+          paye_at: new Date().toISOString()
+        }).eq('id', it.id);
       }
-      await supabase.from('commandes').update({ statut:'paye', total:totalReel, total_final:totalFinal, payment_method:method, remise:remiseMontant, remise_percent:percent, paye_at:new Date().toISOString() }).eq('id', cmd.id);
+      await supabase.from('commandes').update({
+        statut:'paye', total:totalReel, total_final:totalFinal,
+        payment_method:method, remise_percent:percent,
+        paye_at:new Date().toISOString()
+      }).eq('id', cmd.id);
       if(cmd.table_id){
         const {data:remaining}=await supabase.from('commandes').select('id').eq('table_id',cmd.table_id).in('statut',['en_attente','en_preparation','pret','prete','ready']).neq('id',cmd.id);
         if(!remaining || remaining.length===0) await supabase.from('tables').update({statut:'libre'}).eq('id',cmd.table_id);
       }
+      setCommandes(prev => prev.filter(c=>c.id!==cmd.id));
     } catch(e:any){ alert('Erreur: '+e.message); load(); }
     setPaying(null);
   };
@@ -80,50 +88,40 @@ export default function Caisse({ profil, onLogout }: any) {
       const key = `${cmd.id}-${it.id}`;
       const m = itemMethods[key] || 'espece';
       const p = itemRemises[key] || 0;
-      const prix = Number(it.prix||0)*(it.qte||it.quantite||1);
+      const prix = Number(it.prix||0)*(it.qte||1);
       const finalP = m==='offert'?0: m==='remise'? prix - prix*p/100 : prix;
       totalGeneral+=finalP;
-      details.push(`${it.menu_nom||it.nom}: ${m} ${p?`-${p}%`:''} = ${finalP}DH`);
+      details.push(`${it.menu_nom||it.nom}: ${m.toUpperCase()}${p?` -${p}%`:''}`);
     });
-
-    console.log('PAY MIXTE DETAILS:', details);
-    console.log('itemMethods state:', itemMethods);
-
-    if(!confirm(`TICKET UNIQUE MIXTE Table ${cmd.table_numero}?\nTotal: ${totalGeneral.toFixed(0)} DH\n\n${details.join('\n')}`)) return;
-
+    if(!confirm(`TICKET MIXTE Table ${cmd.table_numero} = ${totalGeneral.toFixed(0)} DH?\n\n${details.join('\n')}`)) return;
     setPaying(cmd.id);
     try {
       for(const it of cmd.items){
         const key = `${cmd.id}-${it.id}`;
         const m = itemMethods[key] || 'espece';
         const p = itemRemises[key] || 0;
-        console.log(`Saving item ${it.id} as ${m}`);
         const {error} = await supabase.from('commande_items').update({
-          statut:'paye',
-          payment_method:m,
-          remise_percent:p,
-          paye_at:new Date().toISOString()
+          payment_method: m,
+          remise_percent: p,
+          paye_at: new Date().toISOString()
         }).eq('id', it.id);
-        if(error){ alert('Erreur item '+it.menu_nom+': '+error.message); console.error(error); }
+        if(error) throw error;
       }
-      const {error:cmdError} = await supabase.from('commandes').update({
+      await supabase.from('commandes').update({
         statut:'paye',
-        total:totalGeneral,
-        total_final:totalGeneral,
+        total: totalGeneral,
+        total_final: totalGeneral,
         payment_method:'mixte',
-        paye_at:new Date().toISOString()
+        paye_at: new Date().toISOString()
       }).eq('id', cmd.id);
-      if(cmdError){ alert('Erreur commande: '+cmdError.message); }
-
       if(cmd.table_id){
-        const {data:remaining}=await supabase.from('commandes').select('id').eq('table_id',cmd.table_id).in('statut',['en_attente','en_preparation','pret','prete','ready']).neq('id',cmd.id);
+        const {data:remaining}=await supabase.from('commandes').select('id').eq('table_id',cmd.table_id).neq('statut','paye').neq('id',cmd.id);
         if(!remaining || remaining.length===0) await supabase.from('tables').update({statut:'libre'}).eq('id',cmd.table_id);
       }
       setCommandes(prev => prev.filter(c=>c.id!==cmd.id));
       setItemMethods({});
       setItemRemises({});
-      load();
-    } catch(e:any){ alert('Erreur: '+e.message); load(); }
+    } catch(e:any){ alert('Erreur: '+e.message); console.error(e); }
     setPaying(null);
   };
 
@@ -131,21 +129,24 @@ export default function Caisse({ profil, onLogout }: any) {
     const key = `${cmd.id}-${item.id}`;
     const method = itemMethods[key] || 'espece';
     const percent = itemRemises[key] || 0;
-    const prix = Number(item.prix||0)*(item.qte||item.quantite||1);
-    let totalFinal = prix;
-    if(method==='offert') totalFinal=0;
-    else if(method==='remise') totalFinal = prix - prix*percent/100;
+    const prix = Number(item.prix||0)*(item.qte||1);
+    let totalFinal = method==='offert'?0: method==='remise'? prix - prix*percent/100 : prix;
     if(!confirm(`Tkhallas "${item.menu_nom||item.nom}" = ${totalFinal.toFixed(0)} DH (${method})?`)) return;
     setPaying(key);
     try {
-      await supabase.from('commande_items').update({ statut:'paye', payment_method:method, remise_percent:percent, paye_at:new Date().toISOString() }).eq('id', item.id);
+      await supabase.from('commande_items').update({
+        payment_method: method,
+        remise_percent: percent,
+        paye_at: new Date().toISOString()
+      }).eq('id', item.id);
       const remainingItems = cmd.items.filter((it:any)=> it.id!==item.id);
       if(remainingItems.length===0){
         await supabase.from('commandes').update({ statut:'paye', total_final:totalFinal, payment_method:method, paye_at:new Date().toISOString() }).eq('id', cmd.id);
         if(cmd.table_id) await supabase.from('tables').update({statut:'libre'}).eq('id',cmd.table_id);
         setCommandes(prev => prev.filter(c=>c.id!==cmd.id));
+      } else {
+        load();
       }
-      load();
     } catch(e:any){ alert('Erreur: '+e.message); }
     setPaying(null);
   };
@@ -167,7 +168,7 @@ export default function Caisse({ profil, onLogout }: any) {
           const mode = modePaiement[c.id] || 'total';
           const methodTotal = selectedMethod[c.id] || 'espece';
           const percentTotal = remiseMap[c.id] || 0;
-          const totalReel = c.items.reduce((s:number,it:any)=> s + Number(it.prix||0)*(it.qte||it.quantite||1), 0);
+          const totalReel = c.items.reduce((s:number,it:any)=> s + Number(it.prix||0)*(it.qte||1), 0);
           const totalFinal = methodTotal==='offert'?0: methodTotal==='remise'? totalReel - totalReel*percentTotal/100 : totalReel;
           const totalMixte = c.items.reduce((s:number,it:any)=>{const k=`${c.id}-${it.id}`; const m=itemMethods[k]||'espece'; const p=itemRemises[k]||0; const prix=Number(it.prix||0)*(it.qte||1); return s + (m==='offert'?0:m==='remise'?prix-prix*p/100:prix);},0);
           return (
@@ -193,7 +194,7 @@ export default function Caisse({ profil, onLogout }: any) {
                   const key = `${c.id}-${it.id}`;
                   const m = itemMethods[key] || 'espece';
                   const p = itemRemises[key] || 0;
-                  const prix = Number(it.prix||0)*(it.qte||it.quantite||1);
+                  const prix = Number(it.prix||0)*(it.qte||1);
                   const finalP = m==='offert'?0: m==='remise'? prix - prix*p/100 : prix;
                   return (
                     <div key={it.id} className="bg-black rounded-xl p-3 border border-zinc-800">
