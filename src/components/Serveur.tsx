@@ -36,20 +36,6 @@ function TablesView({ onSelectTable, profil, onLogout }: any) {
   const emporte = tables.filter((t:any)=>t.etage==='Emporte' || t.etage==='EMPORTE');
   const glovo = tables.filter((t:any)=>t.etage==='GLOVO');
 
-  const renderTables = (list:any[], color:string, label:string) => (
-    list.length>0 && (
-      <div className="mb-8">
-        <div className="flex items-center gap-2 mb-3"><div className={`w-2 h-2 rounded-full bg-${color}-500`}></div><h3 className={`font-black text-${color}-400 text-sm`}>{label} - {list.length} tables</h3></div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-          {list.map((t) => {
-            const s = getStatus(t.id);
-            return <button key={t.id} onClick={() => onSelectTable(t)} className={`aspect-square rounded-2xl flex flex-col items-center justify-center border-2 ${s==='pret'?'bg-green-900/40 border-green-500':s==='en_cours'?'bg-blue-950/40 border-blue-600':'bg-[#1A1A1A] border-gray-800'}`}><div className="text-3xl font-bold text-white">{t.numero}</div><div className="text-[10px] text-zinc-500">{t.etage}</div><div className="text-xs mt-1 text-gray-500">{s}</div></button>
-          })}
-        </div>
-      </div>
-    )
-  );
-
   return (
     <div className="min-h-screen bg-black text-white">
       <div className="bg-yellow-500 text-black p-3 flex justify-between items-center sticky top-0 z-20">
@@ -57,11 +43,40 @@ function TablesView({ onSelectTable, profil, onLogout }: any) {
         <button onClick={onLogout} className="bg-black text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1"><LogOut className="w-4 h-4"/>Logout</button>
       </div>
       <div className="p-4 max-w-4xl mx-auto">
-        <h2 className="text-xl font-bold text-white mb-4">Tables - {tables.length}</h2>
-        {renderTables(rdc, 'green', 'RDC')}
-        {renderTables(premier, 'blue', '1er ÉTAGE')}
-        {renderTables(emporte, 'orange', 'EMPORTE')}
-        {renderTables(glovo, 'yellow', 'GLOVO')}
+        <h2 className="text-xl font-bold text-white mb-6">Tables - {tables.length}</h2>
+        
+        {rdc.length>0 && (
+          <div className="mb-8">
+            <div className="flex items-center gap-2 mb-3"><div className="w-2 h-2 rounded-full bg-green-500"></div><h3 className="font-black text-green-400 text-sm">RDC - {rdc.length} tables</h3></div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {rdc.map((t) => { const s = getStatus(t.id); return <button key={t.id} onClick={() => onSelectTable(t)} className={`aspect-square rounded-2xl flex flex-col items-center justify-center border-2 ${s==='pret'?'bg-green-900/40 border-green-500':s==='en_cours'?'bg-blue-950/40 border-blue-600':'bg-[#1A1A1A] border-gray-800'}`}><div className="text-3xl font-bold text-white">{t.numero}</div><div className="text-[10px] text-zinc-500">RDC</div><div className="text-xs mt-1 text-gray-500">{s}</div></button> })}
+            </div>
+          </div>
+        )}
+        {premier.length>0 && (
+          <div className="mb-8">
+            <div className="flex items-center gap-2 mb-3"><div className="w-2 h-2 rounded-full bg-blue-500"></div><h3 className="font-black text-blue-400 text-sm">1er ÉTAGE - {premier.length} tables</h3></div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {premier.map((t) => { const s = getStatus(t.id); return <button key={t.id} onClick={() => onSelectTable(t)} className={`aspect-square rounded-2xl flex flex-col items-center justify-center border-2 ${s==='pret'?'bg-green-900/40 border-green-500':s==='en_cours'?'bg-blue-900/40 border-blue-500':'bg-[#1A1A1A] border-blue-900/30'}`}><div className="text-3xl font-bold text-white">{t.numero}</div><div className="text-[10px] text-blue-400">1er</div><div className="text-xs mt-1 text-gray-500">{s}</div></button> })}
+            </div>
+          </div>
+        )}
+        {emporte.length>0 && (
+          <div className="mb-8">
+            <div className="flex items-center gap-2 mb-3"><div className="w-2 h-2 rounded-full bg-orange-500"></div><h3 className="font-black text-orange-400 text-sm">EMPORTE - {emporte.length} tables</h3></div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {emporte.map((t) => { const s = getStatus(t.id); return <button key={t.id} onClick={() => onSelectTable(t)} className={`aspect-square rounded-2xl flex flex-col items-center justify-center border-2 ${s==='pret'?'bg-green-900/40 border-green-500':s==='en_cours'?'bg-orange-950/40 border-orange-600':'bg-[#1A1A1A] border-orange-900/30'}`}><div className="text-3xl font-bold text-white">{t.numero}</div><div className="text-[10px] text-orange-400">Emporte</div><div className="text-xs mt-1 text-gray-500">{s}</div></button> })}
+            </div>
+          </div>
+        )}
+        {glovo.length>0 && (
+          <div className="mb-8">
+            <div className="flex items-center gap-2 mb-3"><div className="w-2 h-2 rounded-full bg-yellow-500"></div><h3 className="font-black text-yellow-400 text-sm">GLOVO - {glovo.length} tables</h3></div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {glovo.map((t) => { const s = getStatus(t.id); return <button key={t.id} onClick={() => onSelectTable(t)} className={`aspect-square rounded-2xl flex flex-col items-center justify-center border-2 ${s==='pret'?'bg-green-900/40 border-green-500':s==='en_cours'?'bg-yellow-950/40 border-yellow-600':'bg-[#1A1A1A] border-yellow-900/30'}`}><div className="text-3xl font-bold text-white">{t.numero}</div><div className="text-[10px] text-yellow-400">GLOVO</div><div className="text-xs mt-1 text-gray-500">{s}</div></button> })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -73,7 +88,6 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
   const [recettes, setRecettes] = useState<any[]>([]);
   const [dbCategories, setDbCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  // CART JDID: fih qte + note
   const [cart, setCart] = useState<Record<string, {qte:number, note:string}>>({});
   const [selectedCat, setSelectedCat] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -121,26 +135,24 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
     setCart((c) => ({...c, [id]: { qte: (c[id]?.qte || 0) + 1, note: c[id]?.note || "" } }));
   };
   const remove = (id: string) => setCart((c) => { const n = {...c }; if (n[id]?.qte > 1) n[id].qte--; else delete n[id]; return n; });
-  
   const saveNote = (id:string) => {
     setCart(c => ({...c, [id]: {...c[id], note: tempNote }}));
-    setEditingNoteId(null);
-    setTempNote("");
+    setEditingNoteId(null); setTempNote("");
   };
 
   const buildTicketHtml = () => {
     const date = new Date().toLocaleString('fr-MA');
     const lines = cartItems.map(([id,v])=>{
       const mm = menus.find(x=>x.id===id);
-      const notePart = v.note ? `<div style="font-size:14px; font-weight:700; color:#000; background:#ffeb3b; padding:2px 6px; margin-top:4px;">⚠️ ${v.note.toUpperCase()}</div>` : '';
-      return `<div style="font-size:19px; font-weight:900; margin:10px 0; border-bottom:1px dotted #999; padding-bottom:6px;"><div>${v.qte}x ${mm?.nom}</div>${notePart}</div>`;
+      const notePart = v.note ? `<div style="font-size:15px; font-weight:900; color:#000; background:#ffeb3b; padding:3px 6px; margin-top:5px; border:2px solid #000;">⚠️ ${v.note.toUpperCase()}</div>` : '';
+      return `<div style="font-size:19px; font-weight:900; margin:12px 0; border-bottom:1px dotted #999; padding-bottom:8px;"><div>${v.qte}x ${mm?.nom}</div>${notePart}</div>`;
     }).join('');
     return `<html><head><title>TABLE ${table.numero}</title><style>@page{size:80mm auto; margin:0} body{margin:0; font-family:monospace; width:72mm; padding:5mm;}</style></head><body>
       <div style="text-align:center; font-size:22px; font-weight:900;">🍳 CUISINE</div>
-      <div style="text-align:center; font-size:13px;">MARSILIA FOOD</div>
+      <div style="text-align:center; font-size:13px;">MARSILIA FOOD HAJ FATEH</div>
       <div style="border-top:2px dashed #000; margin:8px 0;"></div>
-      <div style="font-size:26px; font-weight:900; text-align:center;">TABLE ${table.numero} - ${table.etage||'RDC'}</div>
-      <div style="text-align:center; font-size:12px;">${date} - ${serveurNom}</div>
+      <div style="font-size:28px; font-weight:900; text-align:center;">TABLE ${table.numero} - ${table.etage}</div>
+      <div style="text-align:center; font-size:11px;">${date} | ${serveurNom}</div>
       <div style="border-top:2px dashed #000; margin:8px 0;"></div>${lines}
       <div style="border-top:2px dashed #000; margin:8px 0;"></div><div style="text-align:center; font-size:22px; font-weight:900;">A PREPARER</div></body></html>`;
   };
@@ -180,30 +192,69 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
 
   if (loading) return <div className="flex justify-center py-12"><div className="w-8 h-8 border-2 border-[#FF6B00] border-t-transparent rounded-full animate-spin" /></div>;
 
+  // STYLE ZWIN B7AL TASWIRA - VERSION JDIDA
   if (!selectedCat) {
+    const catIcons: any = {
+      'FTOUR': '🍳', 'PETIT-DÉJEUNER': '🍳', 'PETIT-DEJEUNER': '🍳',
+      'BOISSONS CHAUDES': '☕', 'À LA CARTE': '📋', 'A LA CARTE': '📋',
+      'LES SALADES': '🥗', 'NOS SALADES': '🥗', 'السلطات': '🥗',
+      'CHAWARMA': '🌯', 'الشورما': '🌯',
+      'POULET': '🍗', 'POULET GRILLÉ': '🍗',
+      'SNACKS': '🍔', 'NOS SNACKS': '🍔',
+      'PIZZA': '🍕', 'PIZZA & CALZONE': '🍕', 'الران الإيطالي': '🍕',
+      'PLATS MAROCAINS': '🍲', 'PLATS MAROCAINS (اسمة مغربية)': '🍲',
+      'SODA': '🥤', 'BOISSONS FROIDES & JUS': '🥤',
+      'LES JUS': '🧃', 'JUS SPÉCIAUX': '🍹', 'عصائر مميزة': '🍹',
+      'CREPE SALE': '🫓', 'CRÊPES SALÉES': '🫓', 'كريب مالح': '🫓',
+      'CREPE SUCRE': '🥞', 'CRÊPES SUCRÉES & LE COIN SUCRÉ': '🥞',
+      'DESSERT': '🍰', 'ZAKARIYA': '⭐'
+    };
+
     return (
-      <div className="min-h-screen bg-[#0A0A0A] text-white pb-24">
-        <div className="sticky top-0 z-30 bg-[#0A0A0A]/95 border-b border-gray-800 px-4 py-3">
+      <div className="min-h-screen bg-[#050505] text-white pb-28">
+        <div className="sticky top-0 z-30 bg-[#050505]/90 backdrop-blur-xl border-b border-white/[0.08] px-4 py-3">
           <div className="flex items-center gap-3 max-w-4xl mx-auto">
-            <button onClick={onBack} className="p-2 rounded-lg bg-[#1A1A1A]"><ArrowLeft className="w-5 h-5" /></button>
-            <div><h2 className="font-bold">Table {table.numero} - {table.etage}</h2><p className="text-gray-500 text-xs">{serveurNom} • Choisir Catégorie</p></div>
+            <button onClick={onBack} className="w-9 h-9 rounded-full bg-white/[0.08] hover:bg-white/[0.12] flex items-center justify-center"><ArrowLeft className="w-5 h-5" /></button>
+            <div><h2 className="font-black text-[14px] tracking-wide">TABLE {table.numero} • {table.etage}</h2><p className="text-white/40 text-[11px]">{serveurNom} • Choisir Catégorie</p></div>
           </div>
         </div>
-        <div className="p-4 max-w-4xl mx-auto">
-          <div className="grid grid-cols-3 gap-3 mt-4">
-            {dbCategories.map((cat) => (
-              <button key={cat.id} onClick={() => setSelectedCat(cat.nom)} className="group relative h-[62px]">
-                <div className="absolute inset-0 bg-[#1A1A1A] border-2 border-blue-900/60 group-active:bg-[#FF6B00] group-active:border-[#FF6B00]" style={{ transform: 'skew(-18deg)', borderRadius: '6px' }}></div>
-                <div className="absolute inset-0 flex items-center justify-center"><span className="text-white font-black text-[12px] uppercase px-1 text-center">{catLabel(cat.nom)}</span></div>
-              </button>
-            ))}
+
+        <div className="p-3 max-w-4xl mx-auto">
+          <div className="grid grid-cols-2 gap-3 mt-2">
+            {dbCategories.map((cat) => {
+              const isZak = cat.nom.toUpperCase().includes('ZAKARIYA');
+              const icon = catIcons[cat.nom] || catIcons[cat.nom.toUpperCase()] || '🍽️';
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCat(cat.nom)}
+                  className={`group relative h-[86px] rounded-[16px] p-[1px] text-left transition-all active:scale-[0.97]
+                    ${isZak ? 'bg-gradient-to-br from-yellow-300 to-amber-500' : 'bg-gradient-to-br from-blue-900/50 via-blue-800/20 to-transparent'}`}
+                >
+                  <div className={`w-full h-full rounded-[15px] flex items-center gap-3 px-4 relative overflow-hidden
+                    ${isZak ? 'bg-gradient-to-br from-yellow-400 to-orange-500' : 'bg-[#121212] group-active:bg-[#1a1a1a]'}`}>
+                    
+                    {/* Parallelogram light effect b7al tswira */}
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-r from-transparent via-white/[0.04] to-transparent" style={{transform:'skew(-18deg)'}} />
+                    
+                    <div className="text-[28px] shrink-0">{icon}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className={`font-black text-[11px] leading-[1.15] uppercase tracking-wide ${isZak ? 'text-black' : 'text-white'}`}>{cat.nom}</div>
+                      <div className={`text-[10px] mt-1 leading-tight truncate ${isZak ? 'text-black/70' : 'text-white/35'}`}>{catLabel(cat.nom)}</div>
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
           </div>
+          <div className="mt-6 flex justify-center"><div className="bg-white/[0.04] border border-white/[0.06] rounded-full px-4 py-1.5 text-[9px] text-white/20 tracking-[0.2em]">MARSILIA FOOD • HAJ FATEH</div></div>
         </div>
+
         {cartItems.length > 0 && (
-          <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#1A1A1A] border-t border-gray-800 p-4">
+          <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#121212]/95 backdrop-blur border-t border-white/10 p-4">
             <div className="max-w-4xl mx-auto flex items-center justify-between">
-              <div><div className="text-gray-400 text-sm">{cartItems.length} articles</div><div className="text-white text-2xl font-bold">{cartTotal.toFixed(0)} DH</div></div>
-              <button onClick={send} disabled={sending} className="bg-[#FF6B00] text-white px-6 py-3.5 rounded-xl font-bold flex items-center gap-2"><Send className="w-5 h-5" />{sending? 'Envoi...' : 'Envoyer'}</button>
+              <div><div className="text-white/40 text-xs">{cartItems.reduce((a,b)=>a+b[1].qte,0)} articles</div><div className="text-white text-xl font-black">{cartTotal.toFixed(0)} DH</div></div>
+              <button onClick={send} disabled={sending} className="bg-[#FF6B00] text-white px-7 py-3.5 rounded-full font-black shadow-[0_8px_24px_rgba(255,107,0,0.4)] flex items-center gap-2"><Send className="w-5 h-5" />{sending? 'Envoi...' : 'Envoyer'}</button>
             </div>
           </div>
         )}
@@ -213,11 +264,11 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
 
   const filteredMenus = menus.filter(m => m.categorie === selectedCat);
   return (
-    <div className="min-h-screen bg-[#0A0A0A] pb-40">
+    <div className="min-h-screen bg-[#0A0A0A] pb-44">
       <div className="sticky top-0 z-30 bg-[#0A0A0A]/95 border-b border-gray-800 px-4 py-3">
         <div className="flex items-center gap-3 max-w-4xl mx-auto">
           <button onClick={() => setSelectedCat(null)} className="p-2 rounded-lg bg-[#1A1A1A]"><ArrowLeft className="w-5 h-5" /></button>
-          <div><h2 className="font-bold">{catLabel(selectedCat)} - T{table.numero}</h2><p className="text-gray-500 text-xs">{filteredMenus.length} plats</p></div>
+          <div><h2 className="font-bold">{catLabel(selectedCat)} - T{table.numero}</h2><p className="text-gray-500 text-xs">{filteredMenus.length} plats • {table.etage}</p></div>
         </div>
       </div>
 
@@ -235,36 +286,36 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
             );
           })}
         </div>
+        {filteredMenus.length===0 && <div className="text-center text-gray-500 mt-12">Aucun plat dans {selectedCat}</div>}
       </div>
 
-      {/* PANIER + NOTES */}
       {cartItems.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#1A1A1A] border-t border-gray-800 max-h-[55vh] overflow-auto">
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#121212] border-t border-white/10 max-h-[55vh] overflow-auto">
           <div className="p-3 max-w-4xl mx-auto">
             <div className="space-y-2 mb-3">
               {cartItems.map(([id, v]) => {
                 const mm = menus.find(x=>x.id===id);
                 return (
-                  <div key={id} className="bg-black/50 rounded-xl p-2 flex flex-col gap-1">
+                  <div key={id} className="bg-black/60 rounded-xl p-2.5 flex flex-col gap-1.5 border border-white/5">
                     <div className="flex justify-between items-center">
                       <div className="text-white text-sm font-bold">{v.qte}x {mm?.nom}</div>
-                      <button onClick={() => { setEditingNoteId(id); setTempNote(v.note); }} className={`text-[11px] px-2 py-1 rounded flex items-center gap-1 ${v.note? 'bg-yellow-400 text-black' : 'bg-gray-800 text-gray-300'}`}><MessageSquare className="w-3 h-3"/>{v.note? 'Note: '+v.note : 'Ajouter note'}</button>
+                      <button onClick={() => { setEditingNoteId(id); setTempNote(v.note); }} className={`text-[11px] px-2.5 py-1 rounded-full flex items-center gap-1 font-bold ${v.note? 'bg-yellow-400 text-black' : 'bg-white/10 text-white/60'}`}><MessageSquare className="w-3 h-3"/>{v.note? v.note.slice(0,15) : 'Note'}</button>
                     </div>
                     {editingNoteId===id && (
                       <div className="flex gap-2 mt-1">
-                        <input autoFocus value={tempNote} onChange={e=>setTempNote(e.target.value)} placeholder="Ex: bla bsla, bla maticha, zayd har" className="flex-1 bg-[#1A1A1A] border border-gray-700 rounded-lg px-3 py-2 text-sm text-white"/>
-                        <button onClick={()=>saveNote(id)} className="bg-[#FF6B00] px-3 rounded-lg text-sm font-bold">OK</button>
-                        <button onClick={()=>setEditingNoteId(null)} className="bg-gray-800 px-3 rounded-lg text-sm">X</button>
+                        <input autoFocus value={tempNote} onChange={e=>setTempNote(e.target.value)} placeholder="Ex: bla bsla, bla maticha, zayd har" className="flex-1 bg-[#1E1E1E] border border-white/10 rounded-full px-4 py-2.5 text-sm text-white outline-none focus:border-[#FF6B00]"/>
+                        <button onClick={()=>saveNote(id)} className="bg-[#FF6B00] px-4 rounded-full text-sm font-black">OK</button>
+                        <button onClick={()=>setEditingNoteId(null)} className="bg-white/10 px-3 rounded-full text-sm">X</button>
                       </div>
                     )}
-                    {v.note && editingNoteId!==id && <div className="text-yellow-300 text-xs">⚠️ {v.note}</div>}
+                    {v.note && editingNoteId!==id && <div className="bg-yellow-400/10 border border-yellow-400/20 text-yellow-300 text-xs px-2 py-1 rounded-lg">⚠️ {v.note}</div>}
                   </div>
                 )
               })}
             </div>
-            <div className="flex items-center justify-between">
-              <div><div className="text-gray-400 text-xs">{cartItems.length} articles</div><div className="text-white text-xl font-bold">{cartTotal.toFixed(0)} DH</div></div>
-              <button onClick={send} disabled={sending} className="bg-[#FF6B00] text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2"><Send className="w-5 h-5" />{sending? 'Envoi...' : 'Envoyer + Ticket'}</button>
+            <div className="flex items-center justify-between pt-2 border-t border-white/5">
+              <div><div className="text-white/40 text-xs">{cartItems.reduce((a,b)=>a+b[1].qte,0)} articles</div><div className="text-white text-xl font-black">{cartTotal.toFixed(0)} DH</div></div>
+              <button onClick={send} disabled={sending} className="bg-[#FF6B00] text-white px-7 py-3.5 rounded-full font-black shadow-[0_8px_24px_rgba(255,107,0,0.4)] flex items-center gap-2"><Send className="w-5 h-5" />{sending? 'Envoi...' : 'Envoyer + Ticket'}</button>
             </div>
           </div>
         </div>
