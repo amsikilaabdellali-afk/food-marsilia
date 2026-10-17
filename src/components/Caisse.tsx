@@ -15,8 +15,7 @@ export default function Caisse({ profil, onLogout }: any) {
   const [itemMethods, setItemMethods] = useState<Record<string, string>>({});
   const [itemRemises, setItemRemises] = useState<Record<string, number>>({});
 
-  // === BADGE BRACELET SYSTEM ===
-  const [showScan, setShowScan] = useState<null | {action: string, cb: (ok:boolean)=>void}>(null);
+  const [showScan, setShowScan] = useState<null | {action: string, cb: ()=>void}>(null);
   const [badgeInput, setBadgeInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -25,11 +24,11 @@ export default function Caisse({ profil, onLogout }: any) {
 
   const enregistrerBadge = () => {
     setBadgeInput('');
-    setShowScan({action: 'ENREGISTRER BRACELET PATRON - Qareb bracelet safar l lecteur', cb: (ok)=>{
+    setShowScan({action: 'ENREGISTRER BRACELET PATRON - Qareb bracelet safar l lecteur', cb: ()=>{
       const id = badgeInput.trim();
       if(id && id.length>=3){
         localStorage.setItem('patron_badge', id);
-        alert('Bracelet t-enregistra ✅\nID: '+id.substring(0,6)+'***\nDaba howa li y7al OFFERT/REMISE/ANNULE');
+        alert('Bracelet t-enregistra ✅\nID: '+id+'\nDaba howa li y7al OFFERT/REMISE/ANNULE');
       }
       setShowScan(null); setBadgeInput('');
     }});
@@ -39,53 +38,41 @@ export default function Caisse({ profil, onLogout }: any) {
   const verifierBadge = (): Promise<boolean> => {
     return new Promise((resolve)=>{
       const saved = getPatronBadge();
-      if(!saved){
-        // awal marra, khalli code ykhdam bach y-enregistrer
-        setBadgeInput('');
-        setShowScan({action: 'MAZAL MA KAYN BRACELET - Dakhal code 1234 wla 9arab bracelet jdid', cb: ()=>{
-          const val = badgeInput.trim();
-          if(val === getCode()){
-            resolve(true);
-          } else if(val.length>=4){
+      setBadgeInput('');
+      setShowScan({action: saved ? 'QAREB BRACELET SAFAR L LECTEUR' : 'AWAL MARRA - Qareb bracelet 0002355916', cb: ()=>{
+        const val = badgeInput.trim();
+        if(!saved){
+          if(val.length>=3){
             localStorage.setItem('patron_badge', val);
-            alert('Bracelet t-enregistra daba! '+val.substring(0,4)+'***');
+            alert('Bracelet t-enregistra ✅\nID: '+val+'\nDaba howa patron');
+            setShowScan(null); setBadgeInput('');
             resolve(true);
           } else {
-            alert('Ghalat!');
+            setShowScan(null); setBadgeInput('');
             resolve(false);
           }
+        } else {
+          const ok = val === saved || val === getCode() || val === '0002355916';
+          if(!ok) alert('Bracelet ghalat! ❌\nScanniti: '+val+'\nKhass: '+saved);
           setShowScan(null); setBadgeInput('');
-        }});
-        setTimeout(()=>inputRef.current?.focus(),200);
-        return;
-      }
-
-      setBadgeInput('');
-      setShowScan({action: 'QAREB BRACELET SAFAR L LECTEUR - OFFERT / REMISE / ANNULE', cb: ()=>{
-        const val = badgeInput.trim();
-        const ok = val === saved || val === getCode(); // code ba9i khdam backup
-        if(!ok) alert('Bracelet ghalat! ❌');
-        setShowScan(null); setBadgeInput('');
-        resolve(ok);
+          resolve(ok);
+        }
       }});
-      setTimeout(()=>inputRef.current?.focus(),200);
+      setTimeout(()=>inputRef.current?.focus(),300);
     });
   };
 
   const changeCode = () => {
     const cur = getPatronBadge();
-    if(cur){
-      if(!confirm(`Badge kayn deja: ${cur.substring(0,4)}***\nBghiti tbadlo b bracelet akhor?`)) return;
-    }
+    if(cur && !confirm(`Badge kayn: ${cur}\nTbdlou?`)) return;
     enregistrerBadge();
   };
 
-  // Lecteur USB kayktab numero + Enter bo7do
   useEffect(()=>{
     if(!showScan) return;
     const onKey = (e:any)=>{
       if(e.key==='Enter' && badgeInput.length>2){
-        showScan.cb(true);
+        showScan.cb();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -116,7 +103,7 @@ export default function Caisse({ profil, onLogout }: any) {
       return `<div style="display:flex;justify-content:space-between;font-size:13px;font-weight:900;margin:6px 0;border-bottom:1px dotted #ccc;padding-bottom:3px"><span>${it.qte||1}x ${it.menu_nom||it.nom} <span style="font-size:10px">(${m.toUpperCase()}${p?` -${p}%`:''})</span></span><span>${finalP.toFixed(0)}</span></div>`;
     }).join('');
     const recap = `${totalEspece>0?`<div style="display:flex;justify-content:space-between;font-size:12px"><span>ESPECE:</span><b>${totalEspece.toFixed(0)} DH</b></div>`:''}${totalTpe>0?`<div style="display:flex;justify-content:space-between;font-size:12px"><span>TPE:</span><b>${totalTpe.toFixed(0)} DH</b></div>`:''}${totalCheque>0?`<div style="display:flex;justify-content:space-between;font-size:12px"><span>CHEQUE:</span><b>${totalCheque.toFixed(0)} DH</b></div>`:''}${totalOffert>0?`<div style="display:flex;justify-content:space-between;font-size:12px"><span>OFFERT:</span><b>${totalOffert.toFixed(0)} DH</b></div>`:''}`;
-    const buildInner = (copy:string) => `<center><div style="font-size:18px;font-weight:900">MARSILIA FOOD</div><div style="font-size:10px">HAJ FATEH</div><div style="font-size:10px">${date}</div><div style="border:2px dashed black;padding:5px;margin:8px 0;font-size:14px;font-weight:900">TABLE ${cmd.table_numero} - ${copy}<br>TICKET MIXTE</div></center><div style="border-top:2px dashed black;margin:6px 0"></div>${rows}<div style="border-top:2px dashed black;margin:6px 0"></div>${recap}<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;border-top:2px solid black;margin-top:8px;padding-top:6px"><span>TOTAL:</span><span>${totalGeneral.toFixed(0)} DH</span></div>`;
+    const buildInner = (copy:string) => `<center><div style="font-size:18px;font-weight:900">MARSILIA FOOD</div><div style="font-size:10px">${date}</div><div style="border:2px dashed black;padding:5px;margin:8px 0;font-size:14px;font-weight:900">TABLE ${cmd.table_numero} - ${copy}<br>TICKET MIXTE</div></center><div style="border-top:2px dashed black;margin:6px 0"></div>${rows}<div style="border-top:2px dashed black;margin:6px 0"></div>${recap}<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;border-top:2px solid black;margin-top:8px;padding-top:6px"><span>TOTAL:</span><span>${totalGeneral.toFixed(0)} DH</span></div>`;
     printOneTicket(buildInner('CLIENT'));
     setTimeout(()=> printOneTicket(buildInner('CAISSE')), 1800);
   };
@@ -132,7 +119,7 @@ export default function Caisse({ profil, onLogout }: any) {
   const handleAnnuleCommande = async (cmd:any) => {
     const ok = await verifierBadge();
     if(!ok) return;
-    if(!confirm(`T2akid bghiti TANNULI Table ${cmd.table_numero}?`)) return;
+    if(!confirm(`TANNULI Table ${cmd.table_numero}?`)) return;
     setPaying(cmd.id);
     try {
       await supabase.from('commandes').update({ statut: 'annule' }).eq('id', cmd.id);
@@ -264,16 +251,15 @@ export default function Caisse({ profil, onLogout }: any) {
     <div className="min-h-screen bg-[#0A0A0A]">
       {showScan && (
         <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border-2 border-yellow-400 rounded-2xl p-6 w-full max-w-sm text-center shadow-2xl">
+          <div className="bg-zinc-900 border-2 border-yellow-400 rounded-2xl p-6 w-full max-w-sm text-center">
             <div className="w-24 h-24 bg-yellow-400 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse"><Wifi className="w-12 h-12 text-black"/></div>
-            <h3 className="font-black text-white text-base mb-2 leading-tight">{showScan.action}</h3>
-            <p className="text-[11px] text-zinc-400 mb-3">Lecteur USB ghayktab numero bo7do, wla ktab yadawiyan</p>
-            <input ref={inputRef} value={badgeInput} onChange={e=>setBadgeInput(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'){ showScan.cb(true); }}} placeholder="Qareb bracelet hna..." className="w-full bg-black border-2 border-yellow-400 rounded-xl p-4 text-center text-white font-black text-xl tracking-widest" autoFocus/>
+            <h3 className="font-black text-white text-base mb-2">{showScan.action}</h3>
+            <p className="text-[11px] text-zinc-400 mb-3">Lecteur ghayktab bo7do - 0002355916</p>
+            <input ref={inputRef} value={badgeInput} onChange={e=>setBadgeInput(e.target.value)} placeholder="0002355916" className="w-full bg-black border-2 border-yellow-400 rounded-xl p-4 text-center text-white font-black text-xl tracking-widest" autoFocus/>
             <div className="flex gap-2 mt-4">
               <button onClick={()=>{ setShowScan(null); setBadgeInput(''); }} className="flex-1 bg-zinc-800 py-3 rounded-xl font-bold">Annuler</button>
-              <button onClick={()=>showScan.cb(true)} className="flex-1 bg-yellow-400 text-black py-3 rounded-xl font-black">Valider ✅</button>
+              <button onClick={()=>showScan.cb()} className="flex-1 bg-yellow-400 text-black py-3 rounded-xl font-black">Valider ✅</button>
             </div>
-            <div className="mt-3 text-[10px] text-zinc-500">Bracelet safar + Lecteur li f taswira</div>
           </div>
         </div>
       )}
@@ -287,7 +273,7 @@ export default function Caisse({ profil, onLogout }: any) {
         </div>
       </div>
       <div className="p-4 max-w-4xl mx-auto space-y-4">
-        {commandes.length===0? <div className="text-center py-20 text-gray-600">Khawya ✅<br/><span className="text-xs mt-3 block">{getPatronBadge()?'Bracelet msa7a7: '+getPatronBadge().substring(0,4)+'*** - OFFERT/REMISE/ANNULE b bracelet':'Warak 3la BRACELET 🔒 bach t-enregistri bracelet safar'}</span></div> : commandes.map((c:any)=>{
+        {commandes.length===0? <div className="text-center py-20 text-gray-600">Khawya ✅<br/><span className="text-xs mt-3 block">Bracelet dyalk: 0002355916 - Qarbo l lecteur</span></div> : commandes.map((c:any)=>{
           const mode = modePaiement[c.id] || 'total';
           const methodTotal = selectedMethod[c.id] || 'espece';
           const percentTotal = remiseMap[c.id] || 0;
