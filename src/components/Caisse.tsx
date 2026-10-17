@@ -22,10 +22,77 @@ export default function Caisse({ profil, onLogout }: any) {
     const newCode = prompt('Dakhal Code jdid:');
     if (!newCode) return;
     localStorage.setItem('remise_code', newCode);
-    alert('Code t-badal ✅ - daba howa li kaykhdam l OFFERT + REMISE + ANNULE');
+    alert('Code t-badal ✅ - OFFERT + REMISE + ANNULE');
   };
 
-  // === ANNULER COMMANDES ===
+  // === PRINT RESTAURANT 80mm - 1 TICKET BO7ADHA ===
+  const printOneTicket = (innerHtml: string) => {
+    const html = `
+    <html><head><style>
+      @page { size: 80mm auto; margin: 0; }
+      body { margin:0; padding:0; width:80mm; font-family: 'Courier New', monospace; -webkit-print-color-adjust: exact; }
+      .ticket { width:72mm; padding:4mm; color:black; background:white; }
+    </style></head>
+    <body><div class="ticket">${innerHtml}<br><br><br><br><br><br></div><script>setTimeout(()=>{window.print(); setTimeout(()=>window.close(),600)},300)<\/script></body></html>`;
+    const iframe = document.createElement('iframe');
+    iframe.style.position='fixed'; iframe.style.left='-9999px'; iframe.style.width='0'; iframe.style.height='0'; iframe.style.border='0';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow?.document;
+    if(doc){ doc.open(); doc.write(html); doc.close(); }
+    setTimeout(()=>{ try{document.body.removeChild(iframe)}catch{} }, 4000);
+  };
+
+  const printTicketMixte = (cmd:any, methods:any, remises:any) => {
+    const date = new Date().toLocaleString('fr-FR');
+    let totalEspece = 0, totalTpe = 0, totalCheque = 0, totalOffert = 0, totalGeneral = 0;
+    const rows = cmd.items.map((it:any)=>{
+      const key = `${cmd.id}-${it.id}`;
+      const m = methods[key] || 'espece';
+      const p = remises[key] || 0;
+      const prix = Number(it.prix||0)*(it.qte||1);
+      const finalP = m==='offert'?0: m==='remise'? prix - prix*p/100 : prix;
+      if(m==='espece') totalEspece+=finalP; else if(m==='tpe') totalTpe+=finalP; else if(m==='cheque') totalCheque+=finalP; else if(m==='offert') totalOffert+=prix;
+      totalGeneral+=finalP;
+      return `<div style="display:flex;justify-content:space-between;font-size:13px;font-weight:900;margin:6px 0;border-bottom:1px dotted #ccc;padding-bottom:3px"><span>${it.qte||1}x ${it.menu_nom||it.nom} <span style="font-size:10px">(${m.toUpperCase()}${p?` -${p}%`:''})</span></span><span>${finalP.toFixed(0)}</span></div>`;
+    }).join('');
+    const recap = `${totalEspece>0?`<div style="display:flex;justify-content:space-between;font-size:12px"><span>ESPECE:</span><b>${totalEspece.toFixed(0)} DH</b></div>`:''}${totalTpe>0?`<div style="display:flex;justify-content:space-between;font-size:12px"><span>TPE:</span><b>${totalTpe.toFixed(0)} DH</b></div>`:''}${totalCheque>0?`<div style="display:flex;justify-content:space-between;font-size:12px"><span>CHEQUE:</span><b>${totalCheque.toFixed(0)} DH</b></div>`:''}${totalOffert>0?`<div style="display:flex;justify-content:space-between;font-size:12px"><span>OFFERT:</span><b>${totalOffert.toFixed(0)} DH</b></div>`:''}`;
+    const buildInner = (copy:string) => `
+      <center>
+        <div style="font-size:18px;font-weight:900;letter-spacing:1px">MARSILIA FOOD</div>
+        <div style="font-size:10px;margin:2px 0">HAJ FATEH</div>
+        <div style="font-size:10px">${date}</div>
+        <div style="border:2px dashed black;padding:5px;margin:8px 0;font-size:14px;font-weight:900">TABLE ${cmd.table_numero} - ${copy}<br>TICKET MIXTE</div>
+      </center>
+      <div style="border-top:2px dashed black;margin:6px 0"></div>
+      ${rows}
+      <div style="border-top:2px dashed black;margin:6px 0"></div>
+      ${recap}
+      <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;border-top:2px solid black;margin-top:8px;padding-top:6px"><span>TOTAL:</span><span>${totalGeneral.toFixed(0)} DH</span></div>
+      <center style="margin-top:12px;font-size:11px">Merci - Bssaha!</center>
+    `;
+    printOneTicket(buildInner('CLIENT'));
+    setTimeout(()=> printOneTicket(buildInner('CAISSE')), 1800);
+  };
+
+  const printTicketTotal = (cmd:any, method:string, percent:number, totalFinal:number) => {
+    const date = new Date().toLocaleString('fr-FR');
+    const rows = cmd.items.map((it:any)=> `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span>${it.qte||1}x ${it.menu_nom||it.nom}</span><span>${(Number(it.prix||0)*(it.qte||1)).toFixed(0)}</span></div>`).join('');
+    const buildInner = (copy:string) => `
+      <center>
+        <div style="font-size:18px;font-weight:900">MARSILIA FOOD</div>
+        <div style="font-size:10px">${date}</div>
+        <div style="border:2px dashed black;padding:5px;margin:8px 0;font-size:14px;font-weight:900">TABLE ${cmd.table_numero} - ${copy}<br>${method.toUpperCase()}${percent?` -${percent}%`:''}</div>
+      </center>
+      <div style="border-top:2px dashed black;margin:6px 0"></div>
+      ${rows}
+      <div style="border-top:2px dashed black;margin:6px 0"></div>
+      <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900"><span>TOTAL:</span><span>${totalFinal.toFixed(0)} DH</span></div>
+      <center style="margin-top:12px;font-size:11px">Merci!</center>
+    `;
+    printOneTicket(buildInner('CLIENT'));
+    setTimeout(()=> printOneTicket(buildInner('CAISSE')), 1800);
+  };
+
   const handleAnnuleCommande = async (cmd:any) => {
     const code = prompt('Code Patron pour ANNULER COMMANDE?');
     if(code !== getCode()) return alert('Code ghalat!');
@@ -54,42 +121,9 @@ export default function Caisse({ profil, onLogout }: any) {
         if(cmd.table_id) await supabase.from('tables').update({statut:'libre'}).eq('id',cmd.table_id);
         setCommandes(prev => prev.filter(c=>c.id!==cmd.id));
       } else {
-        // update total local
         setCommandes(prev => prev.map(c=> c.id===cmd.id ? {...c, items: newItems} : c));
       }
     } catch(e:any){ alert('Erreur: '+e.message); }
-  };
-
-  // PRINT MIXTE
-  const printTicketMixte = (cmd:any, methods:any, remises:any) => {
-    const date = new Date().toLocaleString('fr-FR');
-    let totalEspece = 0, totalTpe = 0, totalCheque = 0, totalOffert = 0, totalRemise = 0, totalGeneral = 0;
-    const rows = cmd.items.map((it:any)=>{
-      const key = `${cmd.id}-${it.id}`;
-      const m = methods[key] || 'espece';
-      const p = remises[key] || 0;
-      const prix = Number(it.prix||0)*(it.qte||1);
-      const finalP = m==='offert'?0: m==='remise'? prix - prix*p/100 : prix;
-      if(m==='espece') totalEspece+=finalP; else if(m==='tpe') totalTpe+=finalP; else if(m==='cheque') totalCheque+=finalP; else if(m==='offert') totalOffert+=prix; else if(m==='remise') totalRemise+=finalP;
-      totalGeneral+=finalP;
-      return `<div style="display:flex;justify-content:space-between;font-size:12px;margin:4px 0"><span>${it.qte||1}x ${it.menu_nom||it.nom} <b>(${m.toUpperCase()}${p?` -${p}%`:''})</b></span><span>${finalP.toFixed(0)} DH</span></div>`;
-    }).join('');
-    const recap = `${totalEspece>0?`<div style="display:flex;justify-content:space-between"><span>ESPECE:</span><span>${totalEspece.toFixed(0)} DH</span></div>`:''}${totalTpe>0?`<div style="display:flex;justify-content:space-between"><span>TPE:</span><span>${totalTpe.toFixed(0)} DH</span></div>`:''}${totalCheque>0?`<div style="display:flex;justify-content:space-between"><span>CHEQUE:</span><span>${totalCheque.toFixed(0)} DH</span></div>`:''}${totalOffert>0?`<div style="display:flex;justify-content:space-between"><span>OFFERT:</span><span>${totalOffert.toFixed(0)} DH</span></div>`:''}${totalRemise>0?`<div style="display:flex;justify-content:space-between"><span>REMISE:</span><span>${totalRemise.toFixed(0)} DH</span></div>`:''}`;
-    const ticket = (copy:string) => `<div style="width:72mm;padding:5mm;font-family:monospace;color:black;background:white"><center><h2 style="margin:0">MARSILIA FOOD</h2><div style="font-size:10px">${date}</div><div style="font-size:12px;font-weight:bold;margin:6px 0;border:1px dashed black;padding:4px">Table ${cmd.table_numero} - ${copy}<br/>TICKET MIXTE</div></center><hr style="border:1px dashed black">${rows}<hr style="border:1px dashed black">${recap}<div style="display:flex;justify-content:space-between;font-weight:bold;font-size:15px;border-top:2px solid black;margin-top:6px;padding-top:6px"><span>TOTAL:</span><span>${totalGeneral.toFixed(0)} DH</span></div><center style="margin-top:10px;font-size:10px">Merci!</center></div>`;
-    const html = `<html><head><style>@page{size:80mm auto;margin:0}body{margin:0}</style></head><body>${ticket('CLIENT')}<div style="page-break-after:always"></div>${ticket('CAISSE')}<script>setTimeout(()=>{window.print();setTimeout(()=>window.close(),800)},500)<\/script></body></html>`;
-    const iframe = document.createElement('iframe'); iframe.style.position='fixed'; iframe.style.width='0'; iframe.style.height='0'; iframe.style.border='0'; document.body.appendChild(iframe);
-    const doc = iframe.contentWindow?.document; if(doc){ doc.open(); doc.write(html); doc.close(); }
-    setTimeout(()=>{ try{document.body.removeChild(iframe)}catch{} }, 6000);
-  };
-
-  const printTicketTotal = (cmd:any, method:string, percent:number, totalFinal:number) => {
-    const date = new Date().toLocaleString('fr-FR');
-    const rows = cmd.items.map((it:any)=> `<div style="display:flex;justify-content:space-between;font-size:12px"><span>${it.qte||1}x ${it.menu_nom||it.nom}</span><span>${(Number(it.prix||0)*(it.qte||1)).toFixed(0)} DH</span></div>`).join('');
-    const ticket = (copy:string) => `<div style="width:72mm;padding:5mm;font-family:monospace;color:black;background:white"><center><h2>MARSILIA FOOD</h2><div style="font-size:10px">${date}</div><div style="border:1px dashed black;padding:4px;margin:6px 0">Table ${cmd.table_numero} - ${copy}</div></center><hr>${rows}<hr><div style="display:flex;justify-content:space-between;font-weight:bold"><span>TOTAL ${method.toUpperCase()}${percent?` -${percent}%`:''}:</span><span>${totalFinal.toFixed(0)} DH</span></div></div>`;
-    const html = `<html><body>${ticket('CLIENT')}<div style="page-break-after:always"></div>${ticket('CAISSE')}<script>setTimeout(()=>{window.print();window.close()},500)<\/script></body></html>`;
-    const iframe = document.createElement('iframe'); iframe.style.position='fixed'; iframe.style.width='0'; iframe.style.height='0'; iframe.style.border='0'; document.body.appendChild(iframe);
-    const doc = iframe.contentWindow?.document; if(doc){ doc.open(); doc.write(html); doc.close(); }
-    setTimeout(()=>{ try{document.body.removeChild(iframe)}catch{} }, 5000);
   };
 
   const load = useCallback(async () => {
@@ -205,7 +239,6 @@ export default function Caisse({ profil, onLogout }: any) {
                   <button onClick={()=>setSelectedMethod({...selectedMethod,[c.id]:'espece'})} className={`py-2 rounded-xl text-[11px] font-bold ${methodTotal==='espece'?'bg-white text-black':'bg-green-600 text-white'}`}>ESPECE</button>
                   <button onClick={()=>setSelectedMethod({...selectedMethod,[c.id]:'tpe'})} className={`py-2 rounded-xl text-[11px] font-bold ${methodTotal==='tpe'?'bg-white text-black':'bg-blue-600 text-white'}`}>TPE</button>
                   <button onClick={()=>setSelectedMethod({...selectedMethod,[c.id]:'cheque'})} className={`py-2 rounded-xl text-[11px] font-bold ${methodTotal==='cheque'?'bg-white text-black':'bg-purple-600 text-white'}`}>CHEQUE</button>
-                  {/* OFFERT B MOT DE PASSE */}
                   <button onClick={()=>{ const code=prompt('Code Patron pour OFFERT?'); if(code!==getCode()) return alert('Code ghalat!'); setSelectedMethod({...selectedMethod,[c.id]:'offert'}); }} className={`py-2 rounded-xl text-[11px] font-bold border-2 ${methodTotal==='offert'?'bg-white text-black border-white':'bg-orange-600 text-white border-orange-400'}`}>OFFERT 🔒</button>
                   <button onClick={()=>{const code=prompt(`Code Patron?`); if(code!==getCode()) return alert('Code ghalat!'); setShowRemiseFor(c.id);}} className="py-2 rounded-xl text-[11px] font-bold bg-zinc-800 border-2 border-yellow-500 text-yellow-400">REMISE 🔒</button>
                 </div>
@@ -246,7 +279,7 @@ export default function Caisse({ profil, onLogout }: any) {
                 <button onClick={()=>handlePayMixteTotal(c)} disabled={paying===c.id} className="w-full mt-2 py-4 rounded-xl font-black bg-white text-black text-[13px] border-2 border-orange-500 shadow-lg">
                   🧾 TICKET UNIQUE MIXTE = {totalMixte.toFixed(0)} DH - IMPRIMER
                 </button>
-                <button onClick={()=>handleAnnuleCommande(c)} className="w-full py-3 rounded-xl font-bold bg-red-900/50 border border-red-600 text-red-400 flex items-center justify-center gap-2"><Trash2 className="w-4 h-4"/>ANNULER COMMANDE COMPLETE 🔒</button>
+                <button onClick={()=>handleAnnuleCommande(c)} className="w-full py-3 rounded-xl font-bold bg-red-900/50 border border-red-600 text-red-400 flex items-center justify-center gap-2"><Trash2 className="w-4 h-4"/>ANNULER COMMANDE 🔒</button>
               </div>
             )}
           </div>
