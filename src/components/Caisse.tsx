@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { DollarSign, LogOut, Trash2, X, Wifi } from 'lucide-react';
+import { DollarSign, LogOut, Trash2, X, Wifi, Lock } from 'lucide-react';
 
 export default function Caisse({ profil, onLogout }: any) {
   const [commandes, setCommandes] = useState<any[]>([]);
@@ -18,31 +18,28 @@ export default function Caisse({ profil, onLogout }: any) {
   const [showScan, setShowScan] = useState<null | {action: string}>(null);
   const [scanResolve, setScanResolve] = useState<((v:boolean)=>void) | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const scanBuffer = useRef(''); // buffer dyal lecteur
 
   const getPatronBadge = () => localStorage.getItem('patron_badge') || '';
   const getCode = () => localStorage.getItem('remise_code') || '1234';
 
-  // === FIX LECTEUR - KAY9RA NICHAN MN INPUT ===
   const doScan = (forcedValue?: string) => {
     const inputVal = forcedValue || inputRef.current?.value?.trim() || '';
     const val = inputVal.trim();
-    if(!val){ alert('Qareb bracelet lwl!'); return; }
-
+    if(!val){ return; }
     const saved = getPatronBadge();
     if(!saved){
       localStorage.setItem('patron_badge', val);
-      alert('✅ BRACELET T-ENREGISTRA\nID: '+val+'\nDaba howa li y7al OFFERT/REMISE/ANNULE');
+      alert('✅ BRACELET T-ENREGISTRA\nDaba howa li y7al OFFERT/REMISE/ANNULE');
       setShowScan(null);
       if(scanResolve){ scanResolve(true); setScanResolve(null); }
       return;
     } else {
-      const ok = val === saved || val === getCode() || val === '0002355916' || val.includes('2355916');
+      const ok = val === saved || val === getCode() || val.includes('2355916');
       if(ok){
         setShowScan(null);
         if(scanResolve){ scanResolve(true); setScanResolve(null); }
       } else {
-        alert('❌ Badge ghalat!\nScanniti: '+val+'\nLi msa7a7: '+saved+'\n3awd 9arab');
+        alert('❌ Bracelet ghalat!');
         if(inputRef.current){ inputRef.current.value=''; inputRef.current.focus(); }
       }
     }
@@ -53,9 +50,9 @@ export default function Caisse({ profil, onLogout }: any) {
       const saved = getPatronBadge();
       setScanResolve(()=>resolve);
       if(!saved){
-        setShowScan({action: 'AWAL MARRA - Qareb bracelet safar daba ywali PATRON (0002355916)'});
+        setShowScan({action: 'AWAL MARRA - Qareb bracelet safar'});
       } else {
-        setShowScan({action: 'QAREB BRACELET SAFAR - OFFERT/REMISE/ANNULE - '+saved.substring(0,4)+'***'});
+        setShowScan({action: 'QAREB BRACELET PATRON'});
       }
       setTimeout(()=>{ if(inputRef.current){ inputRef.current.value=''; inputRef.current.focus(); } }, 200);
     });
@@ -63,31 +60,27 @@ export default function Caisse({ profil, onLogout }: any) {
 
   const enregistrerBadge = () => {
     setScanResolve(null);
-    setShowScan({action: 'ENREGISTRER BRACELET JADID - Qareb bracelet'});
+    setShowScan({action: 'ENREGISTRER BRACELET JADID'});
     setTimeout(()=>{ if(inputRef.current){ inputRef.current.value=''; inputRef.current.focus(); } }, 200);
   };
 
   const changeCode = () => {
     const cur = getPatronBadge();
     if(cur){
-      if(!confirm('Badge kayn: '+cur+'\nBghiti tbadlo b bracelet akhor?')) return;
+      if(!confirm('Badge kayn deja msa7a7 ✅\nBghiti tbadlo b bracelet akhor?')) return;
     }
     enregistrerBadge();
   };
 
-  // Lecteur USB kayktab w kaydir Enter - nchadoha nichan
   useEffect(()=>{
     if(!showScan) return;
-    let buffer = '';
     const handleKey = (e: KeyboardEvent) => {
       if(e.key === 'Enter'){
-        const v = inputRef.current?.value?.trim() || buffer.trim();
+        const v = inputRef.current?.value?.trim() || '';
         if(v.length>=3){
           e.preventDefault();
           doScan(v);
         }
-      } else if(e.key.length===1){
-        buffer += e.key;
       }
     };
     window.addEventListener('keydown', handleKey);
@@ -268,15 +261,13 @@ export default function Caisse({ profil, onLogout }: any) {
         <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4">
           <div className="bg-zinc-900 border-2 border-yellow-400 rounded-2xl p-6 w-full max-w-sm text-center">
             <div className="w-24 h-24 bg-yellow-400 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce"><Wifi className="w-12 h-12 text-black"/></div>
-            <h3 className="font-black text-white text-base mb-1">{showScan.action}</h3>
-            <p className="text-yellow-300 font-bold text-sm mb-3">Bracelet dyalk: 0002355916</p>
-            <p className="text-[11px] text-zinc-400 mb-3">Lecteur ghayktab bo7do - ma t-warakch 3la clavier</p>
-            <input ref={inputRef} defaultValue="" placeholder="Qareb bracelet hna..." className="w-full bg-black border-2 border-yellow-400 rounded-xl p-4 text-center text-white font-black text-xl tracking-widest" autoFocus onChange={(e)=>{ if(e.target.value.length>=8){ setTimeout(()=>doScan(e.target.value),200); } }}/>
+            <h3 className="font-black text-white text-base mb-4">{showScan.action}</h3>
+            <input ref={inputRef} type="password" defaultValue="" placeholder="••••••••" className="w-full bg-black border-2 border-yellow-400 rounded-xl p-4 text-center text-white font-black text-xl tracking-[0.5em]" autoFocus/>
+            <p className="text-[10px] text-zinc-500 mt-2">Mot de passe makhfi ••••</p>
             <div className="flex gap-2 mt-4">
               <button onClick={()=>{ setShowScan(null); setScanResolve(null); }} className="flex-1 bg-zinc-800 py-4 rounded-xl font-bold">Annuler</button>
               <button onClick={()=>doScan()} className="flex-1 bg-yellow-400 text-black py-4 rounded-xl font-black text-lg">Valider ✅</button>
             </div>
-            <div className="mt-3 text-[10px] text-green-400 font-bold">Ila ma khdamch, 9arab bracelet w khallih 1s fo9 lecteur</div>
           </div>
         </div>
       )}
@@ -284,13 +275,15 @@ export default function Caisse({ profil, onLogout }: any) {
       <div className="sticky top-0 z-30 bg-[#0A0A0A]/95 border-b border-gray-800 px-4 py-3 flex justify-between max-w-4xl mx-auto">
         <div className="flex items-center gap-2"><DollarSign className="w-6 h-6 text-orange-500" /><h2 className="text-white font-bold">Caisse - {commandes.length}</h2></div>
         <div className="flex gap-2">
-          <button onClick={enregistrerBadge} className={`px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 font-black ${getPatronBadge()?'bg-yellow-400 text-black':'bg-red-600 text-white animate-pulse'}`}><Wifi className="w-4 h-4"/>{getPatronBadge()? getPatronBadge().substring(0,6) : 'BRACELET 🔒'}</button>
+          <button onClick={changeCode} className={`px-4 py-1.5 rounded-full text-xs flex items-center gap-1.5 font-black ${getPatronBadge()?'bg-green-600 text-white':'bg-red-600 text-white animate-pulse'}`}>
+            {getPatronBadge() ? <><Lock className="w-3 h-3"/>Badge ✅</> : <><Wifi className="w-3 h-3"/>BRACELET 🔒</>}
+          </button>
           <button onClick={load} className="bg-zinc-800 text-white px-3 py-1 rounded-lg text-xs">Refresh</button>
           <button onClick={onLogout} className="bg-white text-black px-3 py-1 rounded-lg text-xs font-bold">Logout</button>
         </div>
       </div>
       <div className="p-4 max-w-4xl mx-auto space-y-4">
-        {commandes.length===0? <div className="text-center py-20 text-gray-600">Khawya ✅<br/><span className="text-xs mt-3 block">Bracelet: {getPatronBadge()||'Mazal - Qareb 0002355916'}</span></div> : commandes.map((c:any)=>{
+        {commandes.length===0? <div className="text-center py-20 text-gray-600">Khawya ✅<br/><span className="text-xs mt-3 block">{getPatronBadge()?'Badge patron msa7a7 ✅':'Mazal - Qareb bracelet'}</span></div> : commandes.map((c:any)=>{
           const mode = modePaiement[c.id] || 'total';
           const methodTotal = selectedMethod[c.id] || 'espece';
           const percentTotal = remiseMap[c.id] || 0;
