@@ -16,24 +16,20 @@ export default function Caisse({ profil, onLogout }: any) {
   const [itemRemises, setItemRemises] = useState<Record<string, number>>({});
 
   const getCode = () => localStorage.getItem('remise_code') || '1234';
+  
   const changeCode = () => {
     const oldCode = prompt('Dakhal Code 9dim:');
-    if (oldCode!== getCode()) return alert('Code ghalat!');
-    const newCode = prompt('Dakhal Code jdid:');
+    if (!oldCode) return;
+    if (oldCode !== getCode()) return alert('Code ghalat!');
+    const newCode = prompt('Dakhal Code jdid (4 ar9am):');
     if (!newCode) return;
+    if (newCode.length < 3) return alert('Code khas ykon twil chwiya!');
     localStorage.setItem('remise_code', newCode);
-    alert('Code t-badal ✅ - OFFERT + REMISE + ANNULE');
+    alert('Code t-badal ✅\nDaba howa li kaykhdam l OFFERT + REMISE + ANNULE');
   };
 
-  // === PRINT RESTAURANT 80mm - 1 TICKET BO7ADHA ===
   const printOneTicket = (innerHtml: string) => {
-    const html = `
-    <html><head><style>
-      @page { size: 80mm auto; margin: 0; }
-      body { margin:0; padding:0; width:80mm; font-family: 'Courier New', monospace; -webkit-print-color-adjust: exact; }
-      .ticket { width:72mm; padding:4mm; color:black; background:white; }
-    </style></head>
-    <body><div class="ticket">${innerHtml}<br><br><br><br><br><br></div><script>setTimeout(()=>{window.print(); setTimeout(()=>window.close(),600)},300)<\/script></body></html>`;
+    const html = `<html><head><style>@page{size:80mm auto;margin:0}body{margin:0;padding:0;width:80mm;font-family:'Courier New',monospace;-webkit-print-color-adjust:exact}.ticket{width:72mm;padding:4mm;color:black;background:white}</style></head><body><div class="ticket">${innerHtml}<br><br><br><br><br><br></div><script>setTimeout(()=>{window.print();setTimeout(()=>window.close(),600)},300)<\/script></body></html>`;
     const iframe = document.createElement('iframe');
     iframe.style.position='fixed'; iframe.style.left='-9999px'; iframe.style.width='0'; iframe.style.height='0'; iframe.style.border='0';
     document.body.appendChild(iframe);
@@ -56,20 +52,7 @@ export default function Caisse({ profil, onLogout }: any) {
       return `<div style="display:flex;justify-content:space-between;font-size:13px;font-weight:900;margin:6px 0;border-bottom:1px dotted #ccc;padding-bottom:3px"><span>${it.qte||1}x ${it.menu_nom||it.nom} <span style="font-size:10px">(${m.toUpperCase()}${p?` -${p}%`:''})</span></span><span>${finalP.toFixed(0)}</span></div>`;
     }).join('');
     const recap = `${totalEspece>0?`<div style="display:flex;justify-content:space-between;font-size:12px"><span>ESPECE:</span><b>${totalEspece.toFixed(0)} DH</b></div>`:''}${totalTpe>0?`<div style="display:flex;justify-content:space-between;font-size:12px"><span>TPE:</span><b>${totalTpe.toFixed(0)} DH</b></div>`:''}${totalCheque>0?`<div style="display:flex;justify-content:space-between;font-size:12px"><span>CHEQUE:</span><b>${totalCheque.toFixed(0)} DH</b></div>`:''}${totalOffert>0?`<div style="display:flex;justify-content:space-between;font-size:12px"><span>OFFERT:</span><b>${totalOffert.toFixed(0)} DH</b></div>`:''}`;
-    const buildInner = (copy:string) => `
-      <center>
-        <div style="font-size:18px;font-weight:900;letter-spacing:1px">MARSILIA FOOD</div>
-        <div style="font-size:10px;margin:2px 0">HAJ FATEH</div>
-        <div style="font-size:10px">${date}</div>
-        <div style="border:2px dashed black;padding:5px;margin:8px 0;font-size:14px;font-weight:900">TABLE ${cmd.table_numero} - ${copy}<br>TICKET MIXTE</div>
-      </center>
-      <div style="border-top:2px dashed black;margin:6px 0"></div>
-      ${rows}
-      <div style="border-top:2px dashed black;margin:6px 0"></div>
-      ${recap}
-      <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;border-top:2px solid black;margin-top:8px;padding-top:6px"><span>TOTAL:</span><span>${totalGeneral.toFixed(0)} DH</span></div>
-      <center style="margin-top:12px;font-size:11px">Merci - Bssaha!</center>
-    `;
+    const buildInner = (copy:string) => `<center><div style="font-size:18px;font-weight:900">MARSILIA FOOD</div><div style="font-size:10px;margin:2px 0">HAJ FATEH</div><div style="font-size:10px">${date}</div><div style="border:2px dashed black;padding:5px;margin:8px 0;font-size:14px;font-weight:900">TABLE ${cmd.table_numero} - ${copy}<br>TICKET MIXTE</div></center><div style="border-top:2px dashed black;margin:6px 0"></div>${rows}<div style="border-top:2px dashed black;margin:6px 0"></div>${recap}<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;border-top:2px solid black;margin-top:8px;padding-top:6px"><span>TOTAL:</span><span>${totalGeneral.toFixed(0)} DH</span></div><center style="margin-top:12px;font-size:11px">Merci - Bssaha!</center>`;
     printOneTicket(buildInner('CLIENT'));
     setTimeout(()=> printOneTicket(buildInner('CAISSE')), 1800);
   };
@@ -77,18 +60,7 @@ export default function Caisse({ profil, onLogout }: any) {
   const printTicketTotal = (cmd:any, method:string, percent:number, totalFinal:number) => {
     const date = new Date().toLocaleString('fr-FR');
     const rows = cmd.items.map((it:any)=> `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span>${it.qte||1}x ${it.menu_nom||it.nom}</span><span>${(Number(it.prix||0)*(it.qte||1)).toFixed(0)}</span></div>`).join('');
-    const buildInner = (copy:string) => `
-      <center>
-        <div style="font-size:18px;font-weight:900">MARSILIA FOOD</div>
-        <div style="font-size:10px">${date}</div>
-        <div style="border:2px dashed black;padding:5px;margin:8px 0;font-size:14px;font-weight:900">TABLE ${cmd.table_numero} - ${copy}<br>${method.toUpperCase()}${percent?` -${percent}%`:''}</div>
-      </center>
-      <div style="border-top:2px dashed black;margin:6px 0"></div>
-      ${rows}
-      <div style="border-top:2px dashed black;margin:6px 0"></div>
-      <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900"><span>TOTAL:</span><span>${totalFinal.toFixed(0)} DH</span></div>
-      <center style="margin-top:12px;font-size:11px">Merci!</center>
-    `;
+    const buildInner = (copy:string) => `<center><div style="font-size:18px;font-weight:900">MARSILIA FOOD</div><div style="font-size:10px">${date}</div><div style="border:2px dashed black;padding:5px;margin:8px 0;font-size:14px;font-weight:900">TABLE ${cmd.table_numero} - ${copy}<br>${method.toUpperCase()}${percent?` -${percent}%`:''}</div></center><div style="border-top:2px dashed black;margin:6px 0"></div>${rows}<div style="border-top:2px dashed black;margin:6px 0"></div><div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900"><span>TOTAL:</span><span>${totalFinal.toFixed(0)} DH</span></div><center style="margin-top:12px;font-size:11px">Merci!</center>`;
     printOneTicket(buildInner('CLIENT'));
     setTimeout(()=> printOneTicket(buildInner('CAISSE')), 1800);
   };
@@ -194,8 +166,7 @@ export default function Caisse({ profil, onLogout }: any) {
         const key = `${cmd.id}-${it.id}`;
         const m = itemMethods[key] || 'espece';
         const p = itemRemises[key] || 0;
-        const {error} = await supabase.from('commande_items').update({ payment_method: m, remise_percent: p, paye_at: new Date().toISOString() }).eq('id', it.id);
-        if(error) throw error;
+        await supabase.from('commande_items').update({ payment_method: m, remise_percent: p, paye_at: new Date().toISOString() }).eq('id', it.id);
       }
       await supabase.from('commandes').update({ statut:'paye', total: totalGeneral, total_final: totalGeneral, payment_method:'mixte', paye_at: new Date().toISOString() }).eq('id', cmd.id);
       if(cmd.table_id){
@@ -216,7 +187,7 @@ export default function Caisse({ profil, onLogout }: any) {
       <div className="sticky top-0 z-30 bg-[#0A0A0A]/95 border-b border-gray-800 px-4 py-3 flex justify-between max-w-4xl mx-auto">
         <div className="flex items-center gap-2"><DollarSign className="w-6 h-6 text-orange-500" /><h2 className="text-white font-bold">Caisse - {commandes.length}</h2></div>
         <div className="flex gap-2">
-          <button onClick={changeCode} className="bg-zinc-800 text-white px-2 py-1 rounded-lg text-xs flex items-center gap-1"><Settings className="w-3 h-3"/>Code ({getCode()})</button>
+          <button onClick={changeCode} className="bg-zinc-800 text-white px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 hover:bg-zinc-700"><Settings className="w-3 h-3"/>Code 🔒</button>
           <button onClick={load} className="bg-zinc-800 text-white px-3 py-1 rounded-lg text-xs">Refresh</button>
           <button onClick={onLogout} className="bg-white text-black px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1"><LogOut className="w-3 h-3"/>Logout</button>
         </div>
@@ -276,9 +247,7 @@ export default function Caisse({ profil, onLogout }: any) {
                     </div>
                   )
                 })}
-                <button onClick={()=>handlePayMixteTotal(c)} disabled={paying===c.id} className="w-full mt-2 py-4 rounded-xl font-black bg-white text-black text-[13px] border-2 border-orange-500 shadow-lg">
-                  🧾 TICKET UNIQUE MIXTE = {totalMixte.toFixed(0)} DH - IMPRIMER
-                </button>
+                <button onClick={()=>handlePayMixteTotal(c)} disabled={paying===c.id} className="w-full mt-2 py-4 rounded-xl font-black bg-white text-black text-[13px] border-2 border-orange-500 shadow-lg">🧾 TICKET UNIQUE MIXTE = {totalMixte.toFixed(0)} DH - IMPRIMER</button>
                 <button onClick={()=>handleAnnuleCommande(c)} className="w-full py-3 rounded-xl font-bold bg-red-900/50 border border-red-600 text-red-400 flex items-center justify-center gap-2"><Trash2 className="w-4 h-4"/>ANNULER COMMANDE 🔒</button>
               </div>
             )}
