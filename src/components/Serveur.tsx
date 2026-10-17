@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { ArrowLeft, Plus, Minus, Send, Image as ImageIcon, LogOut } from 'lucide-react';
 
@@ -74,9 +74,9 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
   const [dbCategories, setDbCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState<Record<string, number>>({});
-  const [filter, setFilter] = useState('Tous');
+  const [selectedCat, setSelectedCat] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [lastTicket, setLastTicket] = useState<string>(''); // BACH N-WRIW TICKET ILA BROWSER BLOKA PRINT
+  const [lastTicket, setLastTicket] = useState<string>('');
 
   const load = useCallback(async () => {
     const [{ data: m }, { data: mp }, { data: r }, { data: cats }] = await Promise.all([
@@ -91,8 +91,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
 
   const getStock = (id: string) => {
     const mp: any = matieres.find((x: any) => x.id === id);
-    if (!mp) return 0;
-    return Number(mp.quantite?? 0);
+    return Number(mp?.quantite?? 0);
   };
   const checkRupture = (menuId: string, addQte = 1) => {
     const recs = recettes.filter((r: any) => r.menu_id === menuId);
@@ -101,27 +100,19 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
       const r = recs[k];
       const stock = getStock(r.matiere_id);
       let inCart = 0;
-      const cartKeys = Object.keys(cart);
-      for (let c=0;c<cartKeys.length;c++) {
-        const mid = cartKeys[c];
-        const q = cart[mid];
+      Object.keys(cart).forEach(mid => {
         const rr: any = recettes.find((x: any) => x.menu_id === mid && x.matiere_id === r.matiere_id);
-        if (rr) inCart += Number(rr.qte_necessaire?? 0) * q;
-      }
-      const need = Number(r.qte_necessaire?? 0) * addQte;
-      const rest = stock - inCart;
-      if (rest < need - 0.001) {
+        if (rr) inCart += Number(rr.qte_necessaire?? 0) * (cart[mid]||0);
+      });
+      if (stock - inCart < Number(r.qte_necessaire?? 0) * addQte - 0.001) {
         const mp: any = matieres.find((x: any) => x.id === r.matiere_id);
-        return { nom: mp?.nom, restant: rest };
+        return { nom: mp?.nom, restant: stock - inCart };
       }
     }
     return null;
   };
 
-  const catList = ['Tous',...dbCategories.map((c: any) => c.nom)];
   const catLabel = (n: string) => dbCategories.find((c: any) => c.nom === n)?.label || n;
-  const filtered = menus.filter((m) => filter === 'Tous'? true : m.categorie === filter);
-  const grouped = filtered.reduce<Record<string, any[]>>((a, m) => { (a[m.categorie] = a[m.categorie] || []).push(m); return a; }, {});
   const cartItems = Object.entries(cart).filter(([, q]) => q > 0);
   const cartTotal = cartItems.reduce((s, [id, q]) => { const mm = menus.find((x) => x.id === id); return s + (mm? Number(mm.prix) * q : 0); }, 0);
 
@@ -136,120 +127,126 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
     const date = new Date().toLocaleString('fr-MA');
     const lines = cartItems.map(([id,q])=>{
       const mm = menus.find(x=>x.id===id);
-      return `<div style="font-size:19px; font-weight:900; margin:8px 0; display:flex; justify-content:space-between;"><span>${q}x ${mm?.nom}</span></div>`;
+      return `<div style="font-size:19px; font-weight:900; margin:8px 0;"><span>${q}x ${mm?.nom}</span></div>`;
     }).join('');
-    return `
-      <div style="font-family:monospace; width:72mm; padding:5mm;">
-        <div style="text-align:center; font-size:22px; font-weight:900;">🍳 CUISINE</div>
-        <div style="text-align:center; font-size:13px;">MARSILIA FOOD HAJ FATEH</div>
-        <div style="border-top:2px dashed #000; margin:8px 0;"></div>
-        <div style="font-size:30px; font-weight:900; text-align:center;">TABLE ${table.numero}</div>
-        <div style="text-align:center;">${table.etage||'RDC'}</div>
-        <div style="border-top:2px dashed #000; margin:8px 0;"></div>
-        <div>Serveur: <b>${serveurNom}</b></div>
-        <div style="font-size:11px;">${date}</div>
-        <div style="border-top:2px dashed #000; margin:8px 0;"></div>
-        <div style="font-weight:bold;">COMMANDE:</div>
-        ${lines}
-        <div style="border-top:2px dashed #000; margin:8px 0;"></div>
-        <div style="text-align:center; font-size:22px; font-weight:900;">A PREPARER</div>
-      </div>
-    `;
+    return `<html><head><title>TABLE ${table.numero}</title><style>@page{size:80mm auto; margin:0} body{margin:0; font-family:monospace; width:72mm; padding:5mm;}</style></head><body>
+      <div style="text-align:center; font-size:22px; font-weight:900;">🍳 CUISINE</div>
+      <div style="text-align:center; font-size:13px;">MARSILIA FOOD HAJ FATEH</div>
+      <div style="border-top:2px dashed #000; margin:8px 0;"></div>
+      <div style="font-size:30px; font-weight:900; text-align:center;">TABLE ${table.numero}</div>
+      <div style="text-align:center;">${table.etage||'RDC'}</div>
+      <div style="border-top:2px dashed #000; margin:8px 0;"></div>
+      <div>Serveur: <b>${serveurNom}</b></div><div style="font-size:11px;">${date}</div>
+      <div style="border-top:2px dashed #000; margin:8px 0;"></div><div style="font-weight:bold;">COMMANDE:</div>${lines}
+      <div style="border-top:2px dashed #000; margin:8px 0;"></div><div style="text-align:center; font-size:22px; font-weight:900;">A PREPARER</div></body></html>`;
   };
-
+  const printTicket = (html: string) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed; right:0; bottom:0; width:0; height:0; border:0;';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow?.document;
+    if(!doc) return;
+    doc.open(); doc.write(html); doc.close();
+    iframe.contentWindow?.focus();
+    setTimeout(() => { iframe.contentWindow?.print(); setTimeout(() => { try{ document.body.removeChild(iframe);}catch(e){}}, 1000); }, 300);
+  };
   const send = async () => {
     if (cartItems.length === 0) return;
-
-    // 1 - 7ALL PRINT WINDOW 9BAL AWAIT BACH MA Y-TBLOKACH
     const ticketHtml = buildTicketHtml();
     setLastTicket(ticketHtml);
-    const printWindow = window.open('', '_blank', 'width=320,height=600');
-
     setSending(true);
     try {
-      const { data: cmd, error: cmdErr } = await supabase.from('commandes').insert({
-        table_id: table.id,
-        serveur_nom: serveurNom,
-        statut: 'en_attente',
-        total: cartTotal
-      }).select().single();
-      if(cmdErr){ alert('Erreur commande: '+cmdErr.message); if(printWindow) printWindow.close(); setSending(false); return; }
+      const { data: cmd, error: cmdErr } = await supabase.from('commandes').insert({ table_id: table.id, serveur_nom: serveurNom, statut: 'en_attente', total: cartTotal }).select().single();
+      if(cmdErr){ alert('Erreur: '+cmdErr.message); setSending(false); return; }
       if (cmd) {
-        const items = cartItems.map((x: any) => {
-          const mm = menus.find((m) => m.id === x[0])!;
-          return { commande_id: cmd.id, menu_id: x[0], qte: Number(x[1]), prix: Number(mm.prix), menu_nom: mm.nom };
-        });
+        const items = cartItems.map((x: any) => { const mm = menus.find((m) => m.id === x[0])!; return { commande_id: cmd.id, menu_id: x[0], qte: Number(x[1]), prix: Number(mm.prix), menu_nom: mm.nom }; });
         await supabase.from('commande_items').insert(items as any).then(async ({error})=>{
           if(error){
-            const itemsMin = cartItems.map((x: any) => {
-              const mm = menus.find((m) => m.id === x[0])!;
-              return { commande_id: cmd.id, menu_id: x[0], qte: Number(x[1]), prix: Number(mm.prix) };
-            });
+            const itemsMin = cartItems.map((x: any) => { const mm = menus.find((m) => m.id === x[0])!; return { commande_id: cmd.id, menu_id: x[0], qte: Number(x[1]), prix: Number(mm.prix) }; });
             await supabase.from('commande_items').insert(itemsMin as any);
           }
         });
         await supabase.from('tables').update({ statut: 'en_cours' }).eq('id', table.id);
-        for (let i = 0; i < cartItems.length; i++) {
-          const menuId = cartItems[i][0] as string;
-          const qte = cartItems[i][1] as number;
+        for (let i=0;i<cartItems.length;i++){
+          const menuId = cartItems[i][0] as string; const qte = cartItems[i][1] as number;
           const recs = recettes.filter((r: any) => r.menu_id === menuId);
-          for (let j = 0; j < recs.length; j++) {
-            const r = recs[j];
-            const mp: any = matieres.find((x: any) => x.id === r.matiere_id);
-            if (!mp) continue;
-            const nouveau = Math.max(0, Number(mp.quantite || 0) - Number(r.qte_necessaire || 0) * qte);
-            await supabase.from('matiere_premiere').update({ quantite: nouveau } as any).eq('id', mp.id);
-          }
+          for (let j=0;j<recs.length;j++){ const r=recs[j]; const mp:any=matieres.find((x:any)=>x.id===r.matiere_id); if(!mp) continue; const nouveau=Math.max(0, Number(mp.quantite||0)-Number(r.qte_necessaire||0)*qte); await supabase.from('matiere_premiere').update({quantite:nouveau} as any).eq('id', mp.id); }
         }
-        // 2 - DABA IMPRIME
-        if(printWindow){
-          printWindow.document.write(`<html><head><title>TABLE ${table.numero}</title><style>@page{size:80mm auto; margin:0} body{margin:0}</style></head><body>${ticketHtml}</body></html>`);
-          printWindow.document.close();
-          printWindow.focus();
-          setTimeout(()=>{ printWindow.print(); printWindow.close(); }, 400);
-        }
+        printTicket(ticketHtml);
       }
-    } catch (e:any) { if(printWindow) printWindow.close(); alert('Erreur: '+e.message); }
-    setSending(false);
-    onBack();
-  };
-
-  // Manual print ila t-bloka auto
-  const manualPrint = () => {
-    if(!lastTicket) return;
-    const w = window.open('', '', 'width=320,height=600');
-    if(!w) return;
-    w.document.write(`<html><head><style>@page{size:80mm auto; margin:0} body{margin:0}</style></head><body>${lastTicket}</body></html>`);
-    w.document.close(); w.focus(); setTimeout(()=>{w.print(); w.close();},400);
+    } catch (e:any){ alert('Erreur: '+e.message); }
+    setSending(false); onBack();
   };
 
   if (loading) return <div className="flex justify-center py-12"><div className="w-8 h-8 border-2 border-[#FF6B00] border-t-transparent rounded-full animate-spin" /></div>;
-  return (
-    <div className="min-h-screen bg-[#0A0A0A] pb-32">
-      <div className="sticky top-0 z-30 bg-[#0A0A0A]/95 border-b border-gray-800 px-4 py-3"><div className="flex items-center gap-3 max-w-4xl mx-auto"><button onClick={onBack} className="p-2 rounded-lg bg-[#1A1A1A] text-gray-300"><ArrowLeft className="w-5 h-5" /></button><div><h2 className="text-white font-bold">Table {table.numero} - {table.etage||'RDC'}</h2><p className="text-gray-500 text-xs">{serveurNom}</p></div></div></div>
-      <div className="p-4 max-w-4xl mx-auto">
-        <div className="flex gap-2 overflow-x-auto pb-2 mb-4">{catList.map((c) => <button key={c} onClick={() => setFilter(c)} className={`px-4 py-2 rounded-lg text-sm whitespace-nowrap ${filter === c? 'bg-[#FF6B00] text-white' : 'bg-[#1A1A1A] text-gray-400'}`}>{c === 'Tous'? 'Tous' : catLabel(c)}</button>)}</div>
-        {Object.entries(grouped).map(([cat, items]) => (
-          <div key={cat} className="mb-6"><h3 className="text-lg font-bold text-[#FF6B00] mb-3">{catLabel(cat)}</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {items.map((m) => {
-                const rupt = checkRupture(m.id, 0);
-                const isRupt =!!rupt;
-                const inCart = cart[m.id] || 0;
-                return (
-                  <div key={m.id} className={`bg-[#1A1A1A] rounded-2xl overflow-hidden border ${isRupt? 'border-red-700 opacity-60' : inCart? 'border-[#FF6B00]' : 'border-gray-800'}`}>
-                    <div className="relative h-24 bg-gray-900">{m.image_url? <img src={m.image_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon className="w-8 h-8 text-gray-700" /></div>}{inCart > 0 && <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-[#FF6B00] text-white text-xs font-bold flex items-center justify-center">{inCart}</div>}</div>
-                    <div className="p-2.5"><h4 className="text-white text-sm font-semibold">{m.nom}</h4><div className="flex items-center justify-between mt-1.5"><span className="text-[#FF6B00] font-bold text-sm">{Number(m.prix).toFixed(0)} DH</span>
-                      {isRupt? <span className="text-red-400 text-[9px] font-bold">RUPTURE</span> : inCart? <div className="flex items-center gap-1"><button onClick={() => remove(m.id)} className="w-6 h-6 rounded-lg bg-gray-800 text-white flex items-center justify-center"><Minus className="w-3 h-3" /></button><span className="text-white text-sm w-5 text-center">{inCart}</span><button onClick={() => add(m.id)} className="w-6 h-6 rounded-lg bg-[#FF6B00] text-white flex items-center justify-center"><Plus className="w-3 h-3" /></button></div> : <button onClick={() => add(m.id)} className="w-7 h-7 rounded-lg bg-[#FF6B00] text-white flex items-center justify-center"><Plus className="w-4 h-4" /></button>}
-                    </div></div>
-                  </div>
-                );
-              })}
+
+  // === PAGE 1: CATEGORIES B7AL TSIRA ===
+  if (!selectedCat) {
+    return (
+      <div className="min-h-screen bg-[#0A0A0A] text-white pb-24">
+        <div className="sticky top-0 z-30 bg-[#0A0A0A]/95 border-b border-gray-800 px-4 py-3">
+          <div className="flex items-center gap-3 max-w-4xl mx-auto">
+            <button onClick={onBack} className="p-2 rounded-lg bg-[#1A1A1A]"><ArrowLeft className="w-5 h-5" /></button>
+            <div><h2 className="font-bold">Table {table.numero} - {table.etage||'RDC'}</h2><p className="text-gray-500 text-xs">{serveurNom} • Choisir Catégorie</p></div>
+          </div>
+        </div>
+
+        <div className="p-4 max-w-4xl mx-auto">
+          <div className="grid grid-cols-3 gap-3 sm:gap-4 mt-4">
+            {dbCategories.map((cat) => (
+              <button key={cat.id} onClick={() => setSelectedCat(cat.nom)} className="group relative h-[62px] bg-transparent">
+                <div className="absolute inset-0 bg-[#1A1A1A] border-2 border-blue-900/60 group-active:bg-[#FF6B00] group-active:border-[#FF6B00] transition-all" style={{ transform: 'skew(-18deg)', borderRadius: '6px' }}></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-white font-black text-[12px] sm:text-[13px] tracking-wide uppercase px-1 text-center leading-tight">{catLabel(cat.nom)}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {cartItems.length > 0 && (
+          <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#1A1A1A] border-t border-gray-800 p-4">
+            <div className="max-w-4xl mx-auto flex items-center justify-between">
+              <div><div className="text-gray-400 text-sm">{cartItems.length} articles</div><div className="text-white text-2xl font-bold">{cartTotal.toFixed(0)} DH</div></div>
+              <button onClick={send} disabled={sending} className="flex items-center gap-2 bg-[#FF6B00] text-white px-6 py-3.5 rounded-xl font-bold"><Send className="w-5 h-5" />{sending? 'Envoi...' : 'Envoyer'}</button>
             </div>
           </div>
-        ))}
+        )}
       </div>
+    );
+  }
+
+  // === PAGE 2: LES REPAS DYAL CATEGORIE ===
+  const filteredMenus = menus.filter(m => m.categorie === selectedCat);
+  return (
+    <div className="min-h-screen bg-[#0A0A0A] pb-32">
+      <div className="sticky top-0 z-30 bg-[#0A0A0A]/95 border-b border-gray-800 px-4 py-3">
+        <div className="flex items-center gap-3 max-w-4xl mx-auto">
+          <button onClick={() => setSelectedCat(null)} className="p-2 rounded-lg bg-[#1A1A1A] text-gray-300"><ArrowLeft className="w-5 h-5" /></button>
+          <div><h2 className="text-white font-bold">{catLabel(selectedCat)} - Table {table.numero}</h2><p className="text-gray-500 text-xs">{filteredMenus.length} plats</p></div>
+        </div>
+      </div>
+
+      <div className="p-4 max-w-4xl mx-auto">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {filteredMenus.map((m) => {
+            const rupt = checkRupture(m.id, 0);
+            const isRupt = !!rupt;
+            const inCart = cart[m.id] || 0;
+            return (
+              <div key={m.id} className={`bg-[#1A1A1A] rounded-2xl overflow-hidden border ${isRupt? 'border-red-700 opacity-60' : inCart? 'border-[#FF6B00]' : 'border-gray-800'}`}>
+                <div className="relative h-24 bg-gray-900">{m.image_url? <img src={m.image_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon className="w-8 h-8 text-gray-700" /></div>}{inCart > 0 && <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-[#FF6B00] text-white text-xs font-bold flex items-center justify-center">{inCart}</div>}</div>
+                <div className="p-2.5"><h4 className="text-white text-sm font-semibold">{m.nom}</h4><div className="flex items-center justify-between mt-1.5"><span className="text-[#FF6B00] font-bold text-sm">{Number(m.prix).toFixed(0)} DH</span>
+                  {isRupt? <span className="text-red-400 text-[9px] font-bold">RUPTURE</span> : inCart? <div className="flex items-center gap-1"><button onClick={() => remove(m.id)} className="w-6 h-6 rounded-lg bg-gray-800 text-white flex items-center justify-center"><Minus className="w-3 h-3" /></button><span className="text-white text-sm w-5 text-center">{inCart}</span><button onClick={() => add(m.id)} className="w-6 h-6 rounded-lg bg-[#FF6B00] text-white flex items-center justify-center"><Plus className="w-3 h-3" /></button></div> : <button onClick={() => add(m.id)} className="w-7 h-7 rounded-lg bg-[#FF6B00] text-white flex items-center justify-center"><Plus className="w-4 h-4" /></button>}
+                </div></div>
+              </div>
+            );
+          })}
+        </div>
+        {filteredMenus.length===0 && <div className="text-center text-gray-500 mt-12">Aucun plat dans {selectedCat}</div>}
+      </div>
+
       {cartItems.length > 0 && <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#1A1A1A] border-t border-gray-800 p-4"><div className="max-w-4xl mx-auto flex items-center justify-between"><div><div className="text-gray-400 text-sm">{cartItems.length} articles</div><div className="text-white text-2xl font-bold">{cartTotal.toFixed(0)} DH</div></div><button onClick={send} disabled={sending} className="flex items-center gap-2 bg-[#FF6B00] text-white px-6 py-3.5 rounded-xl font-bold"><Send className="w-5 h-5" />{sending? 'Envoi...' : 'Envoyer + Ticket'}</button></div></div>}
     </div>
   );
-                                                                                    }
+}
