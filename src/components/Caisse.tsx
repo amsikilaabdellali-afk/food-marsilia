@@ -1,7 +1,7 @@
 // @ts-nocheck
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { DollarSign, LogOut, Settings, Trash2, X } from 'lucide-react';
+import { DollarSign, LogOut, Settings, Trash2, X, Wifi } from 'lucide-react';
 
 export default function Caisse({ profil, onLogout }: any) {
   const [commandes, setCommandes] = useState<any[]>([]);
@@ -15,18 +15,82 @@ export default function Caisse({ profil, onLogout }: any) {
   const [itemMethods, setItemMethods] = useState<Record<string, string>>({});
   const [itemRemises, setItemRemises] = useState<Record<string, number>>({});
 
+  // === BADGE BRACELET SYSTEM ===
+  const [showScan, setShowScan] = useState<null | {action: string, cb: (ok:boolean)=>void}>(null);
+  const [badgeInput, setBadgeInput] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const getPatronBadge = () => localStorage.getItem('patron_badge') || '';
   const getCode = () => localStorage.getItem('remise_code') || '1234';
-  
-  const changeCode = () => {
-    const oldCode = prompt('Dakhal Code 9dim:');
-    if (!oldCode) return;
-    if (oldCode !== getCode()) return alert('Code ghalat!');
-    const newCode = prompt('Dakhal Code jdid (4 ar9am):');
-    if (!newCode) return;
-    if (newCode.length < 3) return alert('Code khas ykon twil chwiya!');
-    localStorage.setItem('remise_code', newCode);
-    alert('Code t-badal ✅\nDaba howa li kaykhdam l OFFERT + REMISE + ANNULE');
+
+  const enregistrerBadge = () => {
+    setBadgeInput('');
+    setShowScan({action: 'ENREGISTRER BRACELET PATRON - Qareb bracelet safar l lecteur', cb: (ok)=>{
+      const id = badgeInput.trim();
+      if(id && id.length>=3){
+        localStorage.setItem('patron_badge', id);
+        alert('Bracelet t-enregistra ✅\nID: '+id.substring(0,6)+'***\nDaba howa li y7al OFFERT/REMISE/ANNULE');
+      }
+      setShowScan(null); setBadgeInput('');
+    }});
+    setTimeout(()=>inputRef.current?.focus(),200);
   };
+
+  const verifierBadge = (): Promise<boolean> => {
+    return new Promise((resolve)=>{
+      const saved = getPatronBadge();
+      if(!saved){
+        // awal marra, khalli code ykhdam bach y-enregistrer
+        setBadgeInput('');
+        setShowScan({action: 'MAZAL MA KAYN BRACELET - Dakhal code 1234 wla 9arab bracelet jdid', cb: ()=>{
+          const val = badgeInput.trim();
+          if(val === getCode()){
+            resolve(true);
+          } else if(val.length>=4){
+            localStorage.setItem('patron_badge', val);
+            alert('Bracelet t-enregistra daba! '+val.substring(0,4)+'***');
+            resolve(true);
+          } else {
+            alert('Ghalat!');
+            resolve(false);
+          }
+          setShowScan(null); setBadgeInput('');
+        }});
+        setTimeout(()=>inputRef.current?.focus(),200);
+        return;
+      }
+
+      setBadgeInput('');
+      setShowScan({action: 'QAREB BRACELET SAFAR L LECTEUR - OFFERT / REMISE / ANNULE', cb: ()=>{
+        const val = badgeInput.trim();
+        const ok = val === saved || val === getCode(); // code ba9i khdam backup
+        if(!ok) alert('Bracelet ghalat! ❌');
+        setShowScan(null); setBadgeInput('');
+        resolve(ok);
+      }});
+      setTimeout(()=>inputRef.current?.focus(),200);
+    });
+  };
+
+  const changeCode = () => {
+    const cur = getPatronBadge();
+    if(cur){
+      if(!confirm(`Badge kayn deja: ${cur.substring(0,4)}***\nBghiti tbadlo b bracelet akhor?`)) return;
+    }
+    enregistrerBadge();
+  };
+
+  // Lecteur USB kayktab numero + Enter bo7do
+  useEffect(()=>{
+    if(!showScan) return;
+    const onKey = (e:any)=>{
+      if(e.key==='Enter' && badgeInput.length>2){
+        showScan.cb(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return ()=>window.removeEventListener('keydown', onKey);
+  },[showScan,badgeInput]);
 
   const printOneTicket = (innerHtml: string) => {
     const html = `<html><head><style>@page{size:80mm auto;margin:0}body{margin:0;padding:0;width:80mm;font-family:'Courier New',monospace;-webkit-print-color-adjust:exact}.ticket{width:72mm;padding:4mm;color:black;background:white}</style></head><body><div class="ticket">${innerHtml}<br><br><br><br><br><br></div><script>setTimeout(()=>{window.print();setTimeout(()=>window.close(),600)},300)<\/script></body></html>`;
@@ -52,7 +116,7 @@ export default function Caisse({ profil, onLogout }: any) {
       return `<div style="display:flex;justify-content:space-between;font-size:13px;font-weight:900;margin:6px 0;border-bottom:1px dotted #ccc;padding-bottom:3px"><span>${it.qte||1}x ${it.menu_nom||it.nom} <span style="font-size:10px">(${m.toUpperCase()}${p?` -${p}%`:''})</span></span><span>${finalP.toFixed(0)}</span></div>`;
     }).join('');
     const recap = `${totalEspece>0?`<div style="display:flex;justify-content:space-between;font-size:12px"><span>ESPECE:</span><b>${totalEspece.toFixed(0)} DH</b></div>`:''}${totalTpe>0?`<div style="display:flex;justify-content:space-between;font-size:12px"><span>TPE:</span><b>${totalTpe.toFixed(0)} DH</b></div>`:''}${totalCheque>0?`<div style="display:flex;justify-content:space-between;font-size:12px"><span>CHEQUE:</span><b>${totalCheque.toFixed(0)} DH</b></div>`:''}${totalOffert>0?`<div style="display:flex;justify-content:space-between;font-size:12px"><span>OFFERT:</span><b>${totalOffert.toFixed(0)} DH</b></div>`:''}`;
-    const buildInner = (copy:string) => `<center><div style="font-size:18px;font-weight:900">MARSILIA FOOD</div><div style="font-size:10px;margin:2px 0">HAJ FATEH</div><div style="font-size:10px">${date}</div><div style="border:2px dashed black;padding:5px;margin:8px 0;font-size:14px;font-weight:900">TABLE ${cmd.table_numero} - ${copy}<br>TICKET MIXTE</div></center><div style="border-top:2px dashed black;margin:6px 0"></div>${rows}<div style="border-top:2px dashed black;margin:6px 0"></div>${recap}<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;border-top:2px solid black;margin-top:8px;padding-top:6px"><span>TOTAL:</span><span>${totalGeneral.toFixed(0)} DH</span></div><center style="margin-top:12px;font-size:11px">Merci - Bssaha!</center>`;
+    const buildInner = (copy:string) => `<center><div style="font-size:18px;font-weight:900">MARSILIA FOOD</div><div style="font-size:10px">HAJ FATEH</div><div style="font-size:10px">${date}</div><div style="border:2px dashed black;padding:5px;margin:8px 0;font-size:14px;font-weight:900">TABLE ${cmd.table_numero} - ${copy}<br>TICKET MIXTE</div></center><div style="border-top:2px dashed black;margin:6px 0"></div>${rows}<div style="border-top:2px dashed black;margin:6px 0"></div>${recap}<div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900;border-top:2px solid black;margin-top:8px;padding-top:6px"><span>TOTAL:</span><span>${totalGeneral.toFixed(0)} DH</span></div>`;
     printOneTicket(buildInner('CLIENT'));
     setTimeout(()=> printOneTicket(buildInner('CAISSE')), 1800);
   };
@@ -60,14 +124,14 @@ export default function Caisse({ profil, onLogout }: any) {
   const printTicketTotal = (cmd:any, method:string, percent:number, totalFinal:number) => {
     const date = new Date().toLocaleString('fr-FR');
     const rows = cmd.items.map((it:any)=> `<div style="display:flex;justify-content:space-between;font-size:13px;margin:5px 0"><span>${it.qte||1}x ${it.menu_nom||it.nom}</span><span>${(Number(it.prix||0)*(it.qte||1)).toFixed(0)}</span></div>`).join('');
-    const buildInner = (copy:string) => `<center><div style="font-size:18px;font-weight:900">MARSILIA FOOD</div><div style="font-size:10px">${date}</div><div style="border:2px dashed black;padding:5px;margin:8px 0;font-size:14px;font-weight:900">TABLE ${cmd.table_numero} - ${copy}<br>${method.toUpperCase()}${percent?` -${percent}%`:''}</div></center><div style="border-top:2px dashed black;margin:6px 0"></div>${rows}<div style="border-top:2px dashed black;margin:6px 0"></div><div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900"><span>TOTAL:</span><span>${totalFinal.toFixed(0)} DH</span></div><center style="margin-top:12px;font-size:11px">Merci!</center>`;
+    const buildInner = (copy:string) => `<center><div style="font-size:18px;font-weight:900">MARSILIA FOOD</div><div style="font-size:10px">${date}</div><div style="border:2px dashed black;padding:5px;margin:8px 0;font-size:14px;font-weight:900">TABLE ${cmd.table_numero} - ${copy}<br>${method.toUpperCase()}${percent?` -${percent}%`:''}</div></center><div style="border-top:2px dashed black;margin:6px 0"></div>${rows}<div style="border-top:2px dashed black;margin:6px 0"></div><div style="display:flex;justify-content:space-between;font-size:16px;font-weight:900"><span>TOTAL:</span><span>${totalFinal.toFixed(0)} DH</span></div>`;
     printOneTicket(buildInner('CLIENT'));
     setTimeout(()=> printOneTicket(buildInner('CAISSE')), 1800);
   };
 
   const handleAnnuleCommande = async (cmd:any) => {
-    const code = prompt('Code Patron pour ANNULER COMMANDE?');
-    if(code !== getCode()) return alert('Code ghalat!');
+    const ok = await verifierBadge();
+    if(!ok) return;
     if(!confirm(`T2akid bghiti TANNULI Table ${cmd.table_numero}?`)) return;
     setPaying(cmd.id);
     try {
@@ -82,8 +146,8 @@ export default function Caisse({ profil, onLogout }: any) {
   };
 
   const handleAnnuleArticle = async (cmd:any, item:any) => {
-    const code = prompt(`Code Patron pour ANNULER ${item.menu_nom||item.nom}?`);
-    if(code !== getCode()) return alert('Code ghalat!');
+    const ok = await verifierBadge();
+    if(!ok) return;
     if(!confirm(`Tannuli ${item.qte}x ${item.menu_nom||item.nom}?`)) return;
     try {
       await supabase.from('commande_items').delete().eq('id', item.id);
@@ -128,6 +192,10 @@ export default function Caisse({ profil, onLogout }: any) {
     setPaying(cmd.id);
     const method = selectedMethod[cmd.id] || 'espece';
     const percent = remiseMap[cmd.id] || 0;
+    if(method==='offert' || method==='remise'){
+      const ok = await verifierBadge();
+      if(!ok){ setPaying(null); return; }
+    }
     let totalFinal = totalReel;
     if(method==='offert') totalFinal=0;
     else if(method==='remise') totalFinal = totalReel - totalReel*percent/100;
@@ -148,6 +216,16 @@ export default function Caisse({ profil, onLogout }: any) {
 
   const handlePayMixteTotal = async (cmd:any) => {
     if(paying) return;
+    let needBadge = false;
+    cmd.items.forEach((it:any)=>{
+      const key = `${cmd.id}-${it.id}`;
+      const m = itemMethods[key] || 'espece';
+      if(m==='offert' || m==='remise') needBadge = true;
+    });
+    if(needBadge){
+      const ok = await verifierBadge();
+      if(!ok) return;
+    }
     let totalGeneral = 0;
     cmd.items.forEach((it:any)=>{
       const key = `${cmd.id}-${it.id}`;
@@ -184,16 +262,32 @@ export default function Caisse({ profil, onLogout }: any) {
 
   return (
     <div className="min-h-screen bg-[#0A0A0A]">
+      {showScan && (
+        <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border-2 border-yellow-400 rounded-2xl p-6 w-full max-w-sm text-center shadow-2xl">
+            <div className="w-24 h-24 bg-yellow-400 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse"><Wifi className="w-12 h-12 text-black"/></div>
+            <h3 className="font-black text-white text-base mb-2 leading-tight">{showScan.action}</h3>
+            <p className="text-[11px] text-zinc-400 mb-3">Lecteur USB ghayktab numero bo7do, wla ktab yadawiyan</p>
+            <input ref={inputRef} value={badgeInput} onChange={e=>setBadgeInput(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'){ showScan.cb(true); }}} placeholder="Qareb bracelet hna..." className="w-full bg-black border-2 border-yellow-400 rounded-xl p-4 text-center text-white font-black text-xl tracking-widest" autoFocus/>
+            <div className="flex gap-2 mt-4">
+              <button onClick={()=>{ setShowScan(null); setBadgeInput(''); }} className="flex-1 bg-zinc-800 py-3 rounded-xl font-bold">Annuler</button>
+              <button onClick={()=>showScan.cb(true)} className="flex-1 bg-yellow-400 text-black py-3 rounded-xl font-black">Valider ✅</button>
+            </div>
+            <div className="mt-3 text-[10px] text-zinc-500">Bracelet safar + Lecteur li f taswira</div>
+          </div>
+        </div>
+      )}
+
       <div className="sticky top-0 z-30 bg-[#0A0A0A]/95 border-b border-gray-800 px-4 py-3 flex justify-between max-w-4xl mx-auto">
         <div className="flex items-center gap-2"><DollarSign className="w-6 h-6 text-orange-500" /><h2 className="text-white font-bold">Caisse - {commandes.length}</h2></div>
         <div className="flex gap-2">
-          <button onClick={changeCode} className="bg-zinc-800 text-white px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 hover:bg-zinc-700"><Settings className="w-3 h-3"/>Code 🔒</button>
+          <button onClick={changeCode} className={`px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 font-black ${getPatronBadge()?'bg-yellow-400 text-black':'bg-red-600 text-white animate-pulse'}`}><Wifi className="w-4 h-4"/>{getPatronBadge()?'Badge '+getPatronBadge().substring(0,3)+'***':'BRACELET 🔒'}</button>
           <button onClick={load} className="bg-zinc-800 text-white px-3 py-1 rounded-lg text-xs">Refresh</button>
           <button onClick={onLogout} className="bg-white text-black px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1"><LogOut className="w-3 h-3"/>Logout</button>
         </div>
       </div>
       <div className="p-4 max-w-4xl mx-auto space-y-4">
-        {commandes.length===0? <div className="text-center py-20 text-gray-600">Khawya ✅</div> : commandes.map((c:any)=>{
+        {commandes.length===0? <div className="text-center py-20 text-gray-600">Khawya ✅<br/><span className="text-xs mt-3 block">{getPatronBadge()?'Bracelet msa7a7: '+getPatronBadge().substring(0,4)+'*** - OFFERT/REMISE/ANNULE b bracelet':'Warak 3la BRACELET 🔒 bach t-enregistri bracelet safar'}</span></div> : commandes.map((c:any)=>{
           const mode = modePaiement[c.id] || 'total';
           const methodTotal = selectedMethod[c.id] || 'espece';
           const percentTotal = remiseMap[c.id] || 0;
@@ -210,12 +304,12 @@ export default function Caisse({ profil, onLogout }: any) {
                   <button onClick={()=>setSelectedMethod({...selectedMethod,[c.id]:'espece'})} className={`py-2 rounded-xl text-[11px] font-bold ${methodTotal==='espece'?'bg-white text-black':'bg-green-600 text-white'}`}>ESPECE</button>
                   <button onClick={()=>setSelectedMethod({...selectedMethod,[c.id]:'tpe'})} className={`py-2 rounded-xl text-[11px] font-bold ${methodTotal==='tpe'?'bg-white text-black':'bg-blue-600 text-white'}`}>TPE</button>
                   <button onClick={()=>setSelectedMethod({...selectedMethod,[c.id]:'cheque'})} className={`py-2 rounded-xl text-[11px] font-bold ${methodTotal==='cheque'?'bg-white text-black':'bg-purple-600 text-white'}`}>CHEQUE</button>
-                  <button onClick={()=>{ const code=prompt('Code Patron pour OFFERT?'); if(code!==getCode()) return alert('Code ghalat!'); setSelectedMethod({...selectedMethod,[c.id]:'offert'}); }} className={`py-2 rounded-xl text-[11px] font-bold border-2 ${methodTotal==='offert'?'bg-white text-black border-white':'bg-orange-600 text-white border-orange-400'}`}>OFFERT 🔒</button>
-                  <button onClick={()=>{const code=prompt(`Code Patron?`); if(code!==getCode()) return alert('Code ghalat!'); setShowRemiseFor(c.id);}} className="py-2 rounded-xl text-[11px] font-bold bg-zinc-800 border-2 border-yellow-500 text-yellow-400">REMISE 🔒</button>
+                  <button onClick={async()=>{ const ok=await verifierBadge(); if(ok) setSelectedMethod({...selectedMethod,[c.id]:'offert'}); }} className={`py-2 rounded-xl text-[11px] font-bold border-2 ${methodTotal==='offert'?'bg-white text-black border-white':'bg-orange-600 text-white border-orange-400'}`}>OFFERT 📡</button>
+                  <button onClick={async()=>{ const ok=await verifierBadge(); if(ok) setShowRemiseFor(c.id); }} className="py-2 rounded-xl text-[11px] font-bold bg-zinc-800 border-2 border-yellow-500 text-yellow-400">REMISE 📡</button>
                 </div>
                 {showRemiseFor===c.id && <div className="bg-black border-2 border-yellow-600 rounded-xl p-3 mb-3"><div className="grid grid-cols-4 gap-2 mb-2">{[5,10,15,20,25,30,40,50].map(p=><button key={p} onClick={()=>{setSelectedMethod({...selectedMethod,[c.id]:'remise'}); setRemiseMap({...remiseMap,[c.id]:p}); setShowRemiseFor(null)}} className="bg-yellow-600 text-white py-2 rounded-lg font-bold">{p}%</button>)}</div><div className="flex gap-2"><input type="number" value={customRemise} onChange={e=>setCustomRemise(e.target.value)} className="flex-1 bg-zinc-900 border border-yellow-600 rounded-xl px-3 py-2 text-white text-center"/><button onClick={()=>{const p=parseFloat(customRemise); setSelectedMethod({...selectedMethod,[c.id]:'remise'}); setRemiseMap({...remiseMap,[c.id]:p}); setShowRemiseFor(null);}} className="bg-white text-black px-4 rounded-xl font-black">OK</button></div></div>}
                 <button onClick={()=>handlePayTotal(c)} disabled={paying===c.id} className="w-full py-3 rounded-xl font-bold bg-green-600 text-white">PAYER TOTAL {totalFinal.toFixed(0)} DH ({methodTotal.toUpperCase()})</button>
-                <button onClick={()=>handleAnnuleCommande(c)} className="w-full mt-2 py-3 rounded-xl font-bold bg-red-900/50 border border-red-600 text-red-400 flex items-center justify-center gap-2"><Trash2 className="w-4 h-4"/>ANNULER COMMANDE 🔒</button>
+                <button onClick={()=>handleAnnuleCommande(c)} className="w-full mt-2 py-3 rounded-xl font-bold bg-red-900/50 border border-red-600 text-red-400 flex items-center justify-center gap-2"><Trash2 className="w-4 h-4"/>ANNULER 📡 BRACELET</button>
               </>
             ) : (
               <div className="space-y-3">
@@ -232,23 +326,23 @@ export default function Caisse({ profil, onLogout }: any) {
                         <button onClick={()=>setItemMethods({...itemMethods,[key]:'espece'})} className={`py-2 rounded-lg text-[10px] font-bold ${m==='espece'?'bg-white text-black':'bg-green-700 text-white'}`}>ESP</button>
                         <button onClick={()=>setItemMethods({...itemMethods,[key]:'tpe'})} className={`py-2 rounded-lg text-[10px] font-bold ${m==='tpe'?'bg-white text-black':'bg-blue-700 text-white'}`}>TPE</button>
                         <button onClick={()=>setItemMethods({...itemMethods,[key]:'cheque'})} className={`py-2 rounded-lg text-[10px] font-bold ${m==='cheque'?'bg-white text-black':'bg-purple-700 text-white'}`}>CHQ</button>
-                        <button onClick={()=>{ const code=prompt('Code pour OFFERT?'); if(code!==getCode()) return alert('Code ghalat!'); setItemMethods({...itemMethods,[key]:'offert'}); }} className={`py-2 rounded-lg text-[10px] font-bold ${m==='offert'?'bg-white text-black':'bg-orange-600 text-white'}`}>OFF 🔒</button>
-                        <button onClick={()=>{
-                          const code=prompt(`Code Patron pour ${it.menu_nom}?`);
-                          if(code!==getCode()) return alert('Code ghalat!');
+                        <button onClick={async()=>{ const ok=await verifierBadge(); if(ok) setItemMethods({...itemMethods,[key]:'offert'}); }} className={`py-2 rounded-lg text-[10px] font-bold ${m==='offert'?'bg-white text-black':'bg-orange-600 text-white'}`}>OFF 📡</button>
+                        <button onClick={async()=>{
+                          const ok=await verifierBadge();
+                          if(!ok) return;
                           const perc = prompt('Pourcentage remise? ex: 10');
                           const val = parseFloat(perc||'0');
                           if(!val) return;
                           setItemMethods({...itemMethods,[key]:'remise'});
                           setItemRemises({...itemRemises,[key]:val});
-                        }} className={`py-2 rounded-lg text-[10px] font-bold ${m==='remise'?'bg-white text-black':'bg-yellow-700 text-white border border-yellow-500'}`}>-{p||'%' } 🔒</button>
+                        }} className={`py-2 rounded-lg text-[10px] font-bold ${m==='remise'?'bg-white text-black':'bg-yellow-700 text-white border border-yellow-500'}`}>-{p||'%' } 📡</button>
                         <button onClick={()=>handleAnnuleArticle(c,it)} className="py-2 rounded-lg text-[10px] font-bold bg-red-700 text-white flex items-center justify-center"><X className="w-4 h-4"/></button>
                       </div>
                     </div>
                   )
                 })}
                 <button onClick={()=>handlePayMixteTotal(c)} disabled={paying===c.id} className="w-full mt-2 py-4 rounded-xl font-black bg-white text-black text-[13px] border-2 border-orange-500 shadow-lg">🧾 TICKET UNIQUE MIXTE = {totalMixte.toFixed(0)} DH - IMPRIMER</button>
-                <button onClick={()=>handleAnnuleCommande(c)} className="w-full py-3 rounded-xl font-bold bg-red-900/50 border border-red-600 text-red-400 flex items-center justify-center gap-2"><Trash2 className="w-4 h-4"/>ANNULER COMMANDE 🔒</button>
+                <button onClick={()=>handleAnnuleCommande(c)} className="w-full py-3 rounded-xl font-bold bg-red-900/50 border border-red-600 text-red-400 flex items-center justify-center gap-2"><Trash2 className="w-4 h-4"/>ANNULER 📡 BRACELET</button>
               </div>
             )}
           </div>
