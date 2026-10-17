@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { DollarSign, LogOut, Settings } from 'lucide-react';
+import { DollarSign, LogOut, Settings, Trash2, X } from 'lucide-react';
 
 export default function Caisse({ profil, onLogout }: any) {
   const [commandes, setCommandes] = useState<any[]>([]);
@@ -22,10 +22,45 @@ export default function Caisse({ profil, onLogout }: any) {
     const newCode = prompt('Dakhal Code jdid:');
     if (!newCode) return;
     localStorage.setItem('remise_code', newCode);
-    alert('Code t-badal ✅');
+    alert('Code t-badal ✅ - daba howa li kaykhdam l OFFERT + REMISE + ANNULE');
   };
 
-  // PRINT MIXTE - TICKET KAY-KHRAJ
+  // === ANNULER COMMANDES ===
+  const handleAnnuleCommande = async (cmd:any) => {
+    const code = prompt('Code Patron pour ANNULER COMMANDE?');
+    if(code !== getCode()) return alert('Code ghalat!');
+    if(!confirm(`T2akid bghiti TANNULI Table ${cmd.table_numero}?`)) return;
+    setPaying(cmd.id);
+    try {
+      await supabase.from('commandes').update({ statut: 'annule' }).eq('id', cmd.id);
+      if(cmd.table_id){
+        const {data:remaining}=await supabase.from('commandes').select('id').eq('table_id',cmd.table_id).neq('statut','paye').neq('statut','annule').neq('id',cmd.id);
+        if(!remaining || remaining.length===0) await supabase.from('tables').update({statut:'libre'}).eq('id',cmd.table_id);
+      }
+      setCommandes(prev => prev.filter(c=>c.id!==cmd.id));
+    } catch(e:any){ alert('Erreur: '+e.message); }
+    setPaying(null);
+  };
+
+  const handleAnnuleArticle = async (cmd:any, item:any) => {
+    const code = prompt(`Code Patron pour ANNULER ${item.menu_nom||item.nom}?`);
+    if(code !== getCode()) return alert('Code ghalat!');
+    if(!confirm(`Tannuli ${item.qte}x ${item.menu_nom||item.nom}?`)) return;
+    try {
+      await supabase.from('commande_items').delete().eq('id', item.id);
+      const newItems = cmd.items.filter((i:any)=>i.id!==item.id);
+      if(newItems.length===0){
+        await supabase.from('commandes').update({ statut: 'annule' }).eq('id', cmd.id);
+        if(cmd.table_id) await supabase.from('tables').update({statut:'libre'}).eq('id',cmd.table_id);
+        setCommandes(prev => prev.filter(c=>c.id!==cmd.id));
+      } else {
+        // update total local
+        setCommandes(prev => prev.map(c=> c.id===cmd.id ? {...c, items: newItems} : c));
+      }
+    } catch(e:any){ alert('Erreur: '+e.message); }
+  };
+
+  // PRINT MIXTE
   const printTicketMixte = (cmd:any, methods:any, remises:any) => {
     const date = new Date().toLocaleString('fr-FR');
     let totalEspece = 0, totalTpe = 0, totalCheque = 0, totalOffert = 0, totalRemise = 0, totalGeneral = 0;
@@ -62,7 +97,7 @@ export default function Caisse({ profil, onLogout }: any) {
     let finalCmds = cmds || [];
     if(!finalCmds.length){
       const {data: all} = await supabase.from('commandes').select('*').neq('statut','paye').limit(100);
-      if(all) finalCmds = all.filter(c=>c.statut!=='annulee' && c.statut!=='paye');
+      if(all) finalCmds = all.filter(c=>c.statut!=='annule' && c.statut!=='annulee' && c.statut!=='paye');
     }
     if(finalCmds.length){
       const ids = finalCmds.map((c:any)=>c.id);
@@ -147,7 +182,7 @@ export default function Caisse({ profil, onLogout }: any) {
       <div className="sticky top-0 z-30 bg-[#0A0A0A]/95 border-b border-gray-800 px-4 py-3 flex justify-between max-w-4xl mx-auto">
         <div className="flex items-center gap-2"><DollarSign className="w-6 h-6 text-orange-500" /><h2 className="text-white font-bold">Caisse - {commandes.length}</h2></div>
         <div className="flex gap-2">
-          <button onClick={changeCode} className="bg-zinc-800 text-white px-2 py-1 rounded-lg text-xs flex items-center gap-1"><Settings className="w-3 h-3"/>Code</button>
+          <button onClick={changeCode} className="bg-zinc-800 text-white px-2 py-1 rounded-lg text-xs flex items-center gap-1"><Settings className="w-3 h-3"/>Code ({getCode()})</button>
           <button onClick={load} className="bg-zinc-800 text-white px-3 py-1 rounded-lg text-xs">Refresh</button>
           <button onClick={onLogout} className="bg-white text-black px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1"><LogOut className="w-3 h-3"/>Logout</button>
         </div>
@@ -170,11 +205,13 @@ export default function Caisse({ profil, onLogout }: any) {
                   <button onClick={()=>setSelectedMethod({...selectedMethod,[c.id]:'espece'})} className={`py-2 rounded-xl text-[11px] font-bold ${methodTotal==='espece'?'bg-white text-black':'bg-green-600 text-white'}`}>ESPECE</button>
                   <button onClick={()=>setSelectedMethod({...selectedMethod,[c.id]:'tpe'})} className={`py-2 rounded-xl text-[11px] font-bold ${methodTotal==='tpe'?'bg-white text-black':'bg-blue-600 text-white'}`}>TPE</button>
                   <button onClick={()=>setSelectedMethod({...selectedMethod,[c.id]:'cheque'})} className={`py-2 rounded-xl text-[11px] font-bold ${methodTotal==='cheque'?'bg-white text-black':'bg-purple-600 text-white'}`}>CHEQUE</button>
-                  <button onClick={()=>setSelectedMethod({...selectedMethod,[c.id]:'offert'})} className={`py-2 rounded-xl text-[11px] font-bold ${methodTotal==='offert'?'bg-white text-black':'bg-orange-600 text-white'}`}>OFFERT</button>
-                  <button onClick={()=>{const code=prompt(`Code Patron?`); if(code!==getCode()) return alert('Code ghalat!'); setShowRemiseFor(c.id);}} className="py-2 rounded-xl text-[11px] font-bold bg-zinc-800 border-2 border-yellow-500 text-yellow-400">REMISE</button>
+                  {/* OFFERT B MOT DE PASSE */}
+                  <button onClick={()=>{ const code=prompt('Code Patron pour OFFERT?'); if(code!==getCode()) return alert('Code ghalat!'); setSelectedMethod({...selectedMethod,[c.id]:'offert'}); }} className={`py-2 rounded-xl text-[11px] font-bold border-2 ${methodTotal==='offert'?'bg-white text-black border-white':'bg-orange-600 text-white border-orange-400'}`}>OFFERT 🔒</button>
+                  <button onClick={()=>{const code=prompt(`Code Patron?`); if(code!==getCode()) return alert('Code ghalat!'); setShowRemiseFor(c.id);}} className="py-2 rounded-xl text-[11px] font-bold bg-zinc-800 border-2 border-yellow-500 text-yellow-400">REMISE 🔒</button>
                 </div>
                 {showRemiseFor===c.id && <div className="bg-black border-2 border-yellow-600 rounded-xl p-3 mb-3"><div className="grid grid-cols-4 gap-2 mb-2">{[5,10,15,20,25,30,40,50].map(p=><button key={p} onClick={()=>{setSelectedMethod({...selectedMethod,[c.id]:'remise'}); setRemiseMap({...remiseMap,[c.id]:p}); setShowRemiseFor(null)}} className="bg-yellow-600 text-white py-2 rounded-lg font-bold">{p}%</button>)}</div><div className="flex gap-2"><input type="number" value={customRemise} onChange={e=>setCustomRemise(e.target.value)} className="flex-1 bg-zinc-900 border border-yellow-600 rounded-xl px-3 py-2 text-white text-center"/><button onClick={()=>{const p=parseFloat(customRemise); setSelectedMethod({...selectedMethod,[c.id]:'remise'}); setRemiseMap({...remiseMap,[c.id]:p}); setShowRemiseFor(null);}} className="bg-white text-black px-4 rounded-xl font-black">OK</button></div></div>}
                 <button onClick={()=>handlePayTotal(c)} disabled={paying===c.id} className="w-full py-3 rounded-xl font-bold bg-green-600 text-white">PAYER TOTAL {totalFinal.toFixed(0)} DH ({methodTotal.toUpperCase()})</button>
+                <button onClick={()=>handleAnnuleCommande(c)} className="w-full mt-2 py-3 rounded-xl font-bold bg-red-900/50 border border-red-600 text-red-400 flex items-center justify-center gap-2"><Trash2 className="w-4 h-4"/>ANNULER COMMANDE 🔒</button>
               </>
             ) : (
               <div className="space-y-3">
@@ -187,11 +224,11 @@ export default function Caisse({ profil, onLogout }: any) {
                   return (
                     <div key={it.id} className="bg-black rounded-xl p-3 border border-zinc-800">
                       <div className="flex justify-between mb-2"><span className="text-white font-bold text-sm">{it.qte||1}x {it.menu_nom||it.nom}</span><span className="text-orange-400 font-black">{finalP.toFixed(0)} DH - {m.toUpperCase()} {p>0?`-${p}%`:''}</span></div>
-                      <div className="grid grid-cols-5 gap-1 mb-2">
+                      <div className="grid grid-cols-6 gap-1 mb-2">
                         <button onClick={()=>setItemMethods({...itemMethods,[key]:'espece'})} className={`py-2 rounded-lg text-[10px] font-bold ${m==='espece'?'bg-white text-black':'bg-green-700 text-white'}`}>ESP</button>
                         <button onClick={()=>setItemMethods({...itemMethods,[key]:'tpe'})} className={`py-2 rounded-lg text-[10px] font-bold ${m==='tpe'?'bg-white text-black':'bg-blue-700 text-white'}`}>TPE</button>
                         <button onClick={()=>setItemMethods({...itemMethods,[key]:'cheque'})} className={`py-2 rounded-lg text-[10px] font-bold ${m==='cheque'?'bg-white text-black':'bg-purple-700 text-white'}`}>CHQ</button>
-                        <button onClick={()=>setItemMethods({...itemMethods,[key]:'offert'})} className={`py-2 rounded-lg text-[10px] font-bold ${m==='offert'?'bg-white text-black':'bg-orange-600 text-white'}`}>OFF</button>
+                        <button onClick={()=>{ const code=prompt('Code pour OFFERT?'); if(code!==getCode()) return alert('Code ghalat!'); setItemMethods({...itemMethods,[key]:'offert'}); }} className={`py-2 rounded-lg text-[10px] font-bold ${m==='offert'?'bg-white text-black':'bg-orange-600 text-white'}`}>OFF 🔒</button>
                         <button onClick={()=>{
                           const code=prompt(`Code Patron pour ${it.menu_nom}?`);
                           if(code!==getCode()) return alert('Code ghalat!');
@@ -200,7 +237,8 @@ export default function Caisse({ profil, onLogout }: any) {
                           if(!val) return;
                           setItemMethods({...itemMethods,[key]:'remise'});
                           setItemRemises({...itemRemises,[key]:val});
-                        }} className={`py-2 rounded-lg text-[10px] font-bold ${m==='remise'?'bg-white text-black':'bg-yellow-700 text-white border border-yellow-500'}`}>-{p||'%'}</button>
+                        }} className={`py-2 rounded-lg text-[10px] font-bold ${m==='remise'?'bg-white text-black':'bg-yellow-700 text-white border border-yellow-500'}`}>-{p||'%' } 🔒</button>
+                        <button onClick={()=>handleAnnuleArticle(c,it)} className="py-2 rounded-lg text-[10px] font-bold bg-red-700 text-white flex items-center justify-center"><X className="w-4 h-4"/></button>
                       </div>
                     </div>
                   )
@@ -208,6 +246,7 @@ export default function Caisse({ profil, onLogout }: any) {
                 <button onClick={()=>handlePayMixteTotal(c)} disabled={paying===c.id} className="w-full mt-2 py-4 rounded-xl font-black bg-white text-black text-[13px] border-2 border-orange-500 shadow-lg">
                   🧾 TICKET UNIQUE MIXTE = {totalMixte.toFixed(0)} DH - IMPRIMER
                 </button>
+                <button onClick={()=>handleAnnuleCommande(c)} className="w-full py-3 rounded-xl font-bold bg-red-900/50 border border-red-600 text-red-400 flex items-center justify-center gap-2"><Trash2 className="w-4 h-4"/>ANNULER COMMANDE COMPLETE 🔒</button>
               </div>
             )}
           </div>
