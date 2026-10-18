@@ -1,35 +1,42 @@
 // @ts-nocheck
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { ArrowLeft, ShoppingCart, Plus, Minus, ChefHat, Search } from 'lucide-react';
-import { printFromTPEToKitchen } from '@/utils/tpePrint';
+import { ArrowLeft, Plus, Edit, Trash2, Search } from 'lucide-react';
 
-export default function Serveur({ user }: any) {
+export default function Admin({ activeTabProp }: any) {
   const [produits, setProduits] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [selectedCategorie, setSelectedCategorie] = useState<string | null>(null);
-  const [cart, setCart] = useState<any[]>([]);
-  const [table, setTable] = useState('');
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from('produits').select('*').eq('disponible', true).order('nom');
-      if(data) setProduits(data);
+      // Jib ga3 produits
+      const { data: produitsData } = await supabase.from('produits').select('*').order('created_at', { ascending: false });
+      if(produitsData) setProduits(produitsData);
+
+      // Jib categories - ila kayn table categories
+      const { data: catsData } = await supabase.from('categories').select('*').order('nom');
+      if(catsData && catsData.length > 0){
+        setCategories(catsData);
+      } else {
+        // Ila ma kaynch table categories, jib men produits
+        const uniq = [...new Set((produitsData||[]).map(p => p.categorie || p.category || p.type || 'Autre'))];
+        setCategories(uniq.map(name => ({ id: name, nom: name, name: name, slug: name })));
+      }
       setLoading(false);
     })();
   }, []);
 
-  // Jib categories men produits
-  const categories = useMemo(() => {
-    const cats = [...new Set(produits.map(p => p.categorie || p.category || 'Autre'))];
-    return cats.filter(Boolean).sort();
-  }, [produits]);
-
-  const filteredProduits = useMemo(() => {
+  // Plats dyal categorie li mkhtara
+  const platsFiltres = useMemo(() => {
     let list = produits;
     if(selectedCategorie){
-      list = list.filter(p => (p.categorie || p.category || 'Autre') === selectedCategorie);
+      list = list.filter(p => {
+        const cat = p.categorie || p.category || p.type || 'Autre';
+        return cat === selectedCategorie || p.categorie_id === selectedCategorie || p.category_id === selectedCategorie;
+      });
     }
     if(search){
       list = list.filter(p => p.nom.toLowerCase().includes(search.toLowerCase()));
@@ -37,161 +44,129 @@ export default function Serveur({ user }: any) {
     return list;
   }, [produits, selectedCategorie, search]);
 
-  const addToCart = (p: any) => {
-    const existing = cart.find(c => c.id === p.id);
-    if(existing){
-      setCart(cart.map(c => c.id === p.id ? {...c, qte: c.qte+1} : c));
-    } else {
-      setCart([...cart, {...p, qte: 1, note: ''}]);
-    }
-  };
-
-  const updateQte = (id: string, delta: number) => {
-    const item = cart.find(c => c.id === id);
-    if(!item) return;
-    const newQte = item.qte + delta;
-    if(newQte <= 0) setCart(cart.filter(c => c.id !== id));
-    else setCart(cart.map(c => c.id === id ? {...c, qte: newQte} : c));
-  };
-
-  const envoyer = async () => {
-    if(!table || cart.length === 0){
-      alert('Khtar table w zid repas!');
-      return;
-    }
-    const commande = {
-      id_table: table,
-      table: table,
-      serveur_id: user?.id,
-      serveur: user?.identifiant || 's1',
-      serveur_nom: user?.nom || 'Serveur',
-      produits: cart,
-      items: cart,
-      statut: 'en_cuisine',
-      total: cart.reduce((a,b)=>a+(b.prix*b.qte),0),
-      created_at: new Date().toISOString()
-    };
-
-    const { data, error } = await supabase.from('commandes').insert([commande]).select();
-    if(error){
-      alert('Erreur: '+error.message);
-    } else {
-      // TPE → Imprimante Cuisine direct
-      try{ printFromTPEToKitchen(data?.[0] || commande); }catch{}
-      alert(`✅ Commande sayfat! Table ${table} → Cuisine`);
-      setCart([]);
-      setSelectedCategorie(null);
-    }
-  };
-
-  if(loading) return <div className="min-h-screen bg-black flex items-center justify-center text-zinc-600">Kaytchargi menu...</div>;
+  if(loading) return <div className="min-h-screen bg-black text-zinc-600 flex items-center justify-center">Kaytchargi Menu 99...</div>;
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col">
-      {/* HEADER */}
-      <div className="bg-zinc-900 border-b border-zinc-800 p-3 flex items-center gap-3 sticky top-0 z-20">
-        {selectedCategorie ? (
-          <button onClick={()=>setSelectedCategorie(null)} className="bg-zinc-800 p-2.5 rounded-full">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-        ) : null}
-        <div className="flex-1">
-          <h1 className="font-black text-sm">
-            {selectedCategorie ? selectedCategorie.toUpperCase() : 'MENU - CATEGORIES'}
-          </h1>
-          <p className="text-[10px] text-zinc-500">
-            {selectedCategorie ? `${filteredProduits.length} repas` : `${categories.length} categories • ${produits.length} repas`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <input value={table} onChange={e=>setTable(e.target.value)} placeholder="Table" className="w-16 bg-black border border-zinc-700 rounded-full px-3 py-2 text-center font-black text-sm" />
-          <div className="bg-yellow-500 text-black px-3 py-2 rounded-full font-black text-xs flex items-center gap-1">
-            <ShoppingCart className="w-4 h-4" /> {cart.reduce((a,b)=>a+b.qte,0)}
-          </div>
-        </div>
+    <div className="min-h-screen bg-black text-white">
+      {/* TABS BHAL TSAWIRA */}
+      <div className="bg-black border-b border-zinc-900 p-2 flex gap-2 overflow-x-auto sticky top-0 z-20">
+        <button className="bg-orange-600 text-white px-4 py-1.5 rounded-full text-[11px] font-black">MENU</button>
+        <button className="bg-zinc-800 text-zinc-400 px-4 py-1.5 rounded-full text-[11px] font-bold">GESTION STOCK</button>
+        <button className="bg-zinc-800 text-zinc-400 px-4 py-1.5 rounded-full text-[11px] font-bold">CATEGORIES</button>
+        <button className="bg-zinc-800 text-zinc-400 px-4 py-1.5 rounded-full text-[11px] font-bold">TABLES</button>
+        <button className="bg-zinc-800 text-zinc-400 px-4 py-1.5 rounded-full text-[11px] font-bold">USERS</button>
+        <button className="bg-zinc-800 text-zinc-400 px-4 py-1.5 rounded-full text-[11px] font-bold">RAPPORTS</button>
       </div>
 
-      {/* SEARCH */}
-      <div className="p-3">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-full px-4 py-2.5 flex items-center gap-2">
-          <Search className="w-4 h-4 text-zinc-500" />
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={selectedCategorie ? `Qalleb f ${selectedCategorie}...` : 'Qalleb f ga3 menu...'} className="flex-1 bg-transparent outline-none text-sm" />
-        </div>
-      </div>
-
-      {/* LAWAL: CATEGORIES */}
-      {!selectedCategorie ? (
-        <div className="flex-1 p-3 grid grid-cols-2 gap-3 content-start">
-          {categories.map((cat) => {
-            const count = produits.filter(p => (p.categorie||'Autre')===cat).length;
-            return (
-              <button
-                key={cat}
-                onClick={()=>setSelectedCategorie(cat)}
-                className="bg-zinc-900 hover:bg-zinc-800 border-2 border-zinc-800 hover:border-yellow-500 rounded-2xl p-5 text-left transition-all active:scale-95 group"
-              >
-                <div className="w-12 h-12 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition">
-                  <ChefHat className="w-7 h-7 text-black" />
-                </div>
-                <div className="font-black text-sm uppercase">{cat}</div>
-                <div className="text-[11px] text-zinc-500 mt-1">{count} repas →</div>
+      <div className="max-w-[1100px] mx-auto p-4">
+        {/* HEADER */}
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-3">
+            {selectedCategorie && (
+              <button onClick={()=>setSelectedCategorie(null)} className="bg-zinc-800 p-2 rounded-full hover:bg-zinc-700">
+                <ArrowLeft className="w-5 h-5" />
               </button>
-            );
-          })}
-          {categories.length===0 && <div className="col-span-2 text-center py-10 text-zinc-600">Ma kayn 7ta categorie</div>}
-        </div>
-      ) : (
-        /* MAN BA3D: LES REPAS DYAL CATEGORIE */
-        <div className="flex-1 p-3 grid grid-cols-2 gap-2.5 content-start pb-32">
-          {filteredProduits.map((p) => (
-            <div key={p.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 flex flex-col">
-              {p.image && <img src={p.image} alt={p.nom} className="w-full h-24 object-cover rounded-xl mb-2" />}
-              <div className="flex-1">
-                <div className="font-bold text-[13px] leading-tight">{p.nom}</div>
-                <div className="text-[11px] text-zinc-500 mt-0.5 line-clamp-2">{p.description || ''}</div>
-              </div>
-              <div className="flex justify-between items-center mt-3">
-                <span className="font-black text-yellow-400 text-sm">{p.prix} DH</span>
-                <button onClick={()=>addToCart(p)} className="bg-white text-black px-3.5 py-1.5 rounded-full font-black text-xs flex items-center gap-1 active:scale-90">
-                  <Plus className="w-3 h-3" /> Zid
-                </button>
-              </div>
-            </div>
-          ))}
-          {filteredProduits.length===0 && (
-            <div className="col-span-2 text-center py-10 text-zinc-600">
-              Ma kayn 7ta repas f {selectedCategorie}
-              <br/>
-              <button onClick={()=>setSelectedCategorie(null)} className="mt-3 bg-zinc-800 px-4 py-2 rounded-full text-xs">Rje3 l categories</button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* PANIER FIXED */}
-      {cart.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-zinc-900 border-t-2 border-yellow-500 p-3 z-30 max-h-[45vh] overflow-y-auto">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="font-black text-xs">Table {table || '?'} • {cart.length} articles</h3>
-            <span className="font-black text-yellow-400">{cart.reduce((a,b)=>a+(b.prix*b.qte),0)} DH</span>
+            )}
+            <h2 className="font-bold text-[15px]">
+              {selectedCategorie ? `${selectedCategorie} - ${platsFiltres.length} plats` : 'Menu 99 - Normal + Glovo'}
+            </h2>
           </div>
-          <div className="space-y-2 mb-3 max-h-32 overflow-y-auto">
-            {cart.map((c) => (
-              <div key={c.id} className="flex justify-between items-center bg-black rounded-full px-3 py-1.5">
-                <span className="text-xs flex-1 truncate">{c.nom}</span>
-                <div className="flex items-center gap-2">
-                  <button onClick={()=>updateQte(c.id,-1)} className="bg-zinc-800 w-6 h-6 rounded-full flex items-center justify-center"><Minus className="w-3 h-3" /></button>
-                  <span className="font-black text-xs w-5 text-center">{c.qte}</span>
-                  <button onClick={()=>updateQte(c.id,1)} className="bg-zinc-800 w-6 h-6 rounded-full flex items-center justify-center"><Plus className="w-3 h-3" /></button>
+          <button className="bg-orange-600 hover:bg-orange-700 px-4 py-2 rounded-full text-xs font-black flex items-center gap-1">
+            + Plat
+          </button>
+        </div>
+
+        {/* SEARCH ILA DAKHAL CATEGORIE */}
+        {selectedCategorie && (
+          <div className="mb-4 bg-zinc-900 border border-zinc-800 rounded-full px-4 py-2 flex items-center gap-2">
+            <Search className="w-4 h-4 text-zinc-500" />
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={`Qalleb f ${selectedCategorie}...`} className="flex-1 bg-transparent outline-none text-sm" />
+          </div>
+        )}
+
+        {/* 1- LAWAL: CATEGORIES */}
+        {!selectedCategorie ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {categories.map((cat) => {
+              const catName = cat.nom || cat.name || cat.id;
+              const count = produits.filter(p => (p.categorie || p.category || 'Autre') === catName).length;
+              const coverPlat = produits.find(p => (p.categorie || 'Autre') === catName);
+
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategorie(catName)}
+                  className="bg-[#121212] border border-zinc-800 hover:border-orange-500 rounded-xl overflow-hidden text-left group"
+                >
+                  <div className="h-[180px] bg-zinc-900 overflow-hidden relative">
+                    {coverPlat?.image ? (
+                      <img src={coverPlat.image} alt={catName} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-zinc-600">
+                        <span className="text-xs">Sans photo</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                    <div className="absolute bottom-3 left-3 right-3">
+                      <div className="font-black text-[16px] uppercase">{catName}</div>
+                      <div className="text-[11px] text-zinc-300">{count} plats →</div>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-[#1a1a1a] flex justify-between items-center">
+                    <span className="text-[11px] text-zinc-500">{count} ingrédients • {cat.slug || catName.toLowerCase()}</span>
+                    <span className="text-orange-500 text-xs font-black">Voir →</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          /* 2- MAN BA3D: LES REPAS DYAL CATEGORIE BHAL TSAWIRA */
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {platsFiltres.map((plat) => (
+              <div key={plat.id} className="bg-[#121212] border border-zinc-800 rounded-xl overflow-hidden group hover:border-zinc-700 transition">
+                {/* SORA */}
+                <div className="h-[200px] bg-zinc-800 relative overflow-hidden">
+                  {plat.image ? (
+                    <img src={plat.image} alt={plat.nom} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-[#2a2a2a]">
+                      <span className="text-zinc-500 text-xs">Sans photo</span>
+                    </div>
+                  )}
+                </div>
+                {/* INFO BHAL TSAWIRA */}
+                <div className="p-3 bg-[#1e1e1e] flex justify-between items-center">
+                  <div className="flex-1">
+                    <div className="font-bold text-[14px]">{plat.nom || plat.name}</div>
+                    <div className="text-[11px] text-zinc-400 mt-1">
+                      {plat.prix || plat.prix_normal || 60} DH Normal <span className="mx-1">|</span> {plat.prix_glovo || 70} DH Glovo 💰
+                    </div>
+                    <div className="text-[9px] text-zinc-600 mt-1">
+                      {plat.ingredients?.length || 1} ingrédients • {plat.categorie || 'poulet_grillé'}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 ml-3">
+                    <button className="bg-[#2a2a2a] hover:bg-zinc-700 w-9 h-9 rounded-lg flex items-center justify-center">
+                      <Edit className="w-4 h-4 text-zinc-400" />
+                    </button>
+                    <button className="bg-red-900/80 hover:bg-red-800 w-9 h-9 rounded-lg flex items-center justify-center">
+                      <Trash2 className="w-4 h-4 text-red-300" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
+
+            {platsFiltres.length === 0 && (
+              <div className="col-span-2 text-center py-16 bg-zinc-900/50 rounded-xl border border-dashed border-zinc-800">
+                <div className="text-zinc-500 text-sm mb-3">Ma kayn 7ta plat f {selectedCategorie}</div>
+                <button className="bg-orange-600 px-5 py-2 rounded-full text-xs font-bold">+ Zid Plat f {selectedCategorie}</button>
+              </div>
+            )}
           </div>
-          <button onClick={envoyer} className="w-full bg-yellow-500 text-black py-3.5 rounded-full font-black text-sm flex items-center justify-center gap-2 active:scale-95">
-            <ChefHat className="w-5 h-5" /> SAYFAT L CUISINE → {table || 'TABLE'}
-          </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
