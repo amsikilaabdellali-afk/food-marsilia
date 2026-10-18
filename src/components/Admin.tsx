@@ -1,10 +1,10 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Edit3, Trash2, X, Image as ImageIcon, Upload, BarChart3, Users, MapPin, Clock, Utensils, AlertTriangle, Package, Plus, Minus, History } from 'lucide-react';
+import { Edit3, Trash2, X, Image as ImageIcon, Upload, BarChart3, Users, MapPin, Clock, Utensils, AlertTriangle, Package, Plus, Minus, History, ArrowLeft } from 'lucide-react';
 
 export default function Admin(){
-  const [tab,setTab]=useState('gestion-stock');
+  const [tab,setTab]=useState('menu');
   return(
     <div className="min-h-screen bg-black text-white pb-20">
       <div className="flex gap-1 p-2 border-b border-zinc-800 sticky top-0 bg-black z-20 overflow-x-auto">
@@ -194,18 +194,7 @@ function MatiereFormStock({mat,onClose,onSaved}:any){
   return <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"><div className="bg-zinc-900 rounded-2xl w-full max-w-md border border-zinc-800 p-5 space-y-3"><h3 className="font-black">{mat?'Modifier':'Nouvelle'} Matière</h3><input value={nom} onChange={e=>setNom(e.target.value)} placeholder="Nom" className="w-full bg-black p-3 rounded-xl border border-zinc-700"/><div className="flex gap-2"><input value={qte} onChange={e=>setQte(e.target.value)} type="number" className="flex-1 bg-black p-3 rounded-xl border border-zinc-700"/><select value={unite} onChange={e=>setUnite(e.target.value)} className="w-24 bg-black p-3 rounded-xl border border-zinc-700"><option>kg</option><option>g</option><option>L</option><option>ml</option><option>pcs</option></select></div><input value={seuil} onChange={e=>setSeuil(e.target.value)} type="number" placeholder="Seuil" className="w-full bg-black p-3 rounded-xl border border-zinc-700"/><div className="flex gap-2"><button onClick={onClose} className="flex-1 bg-zinc-800 py-3 rounded-xl">Annuler</button><button onClick={save} className="flex-1 bg-orange-600 py-3 rounded-xl font-bold">Sauver</button></div></div></div>
 }
 
-function TablesTab(){
-  const [items,setItems]=useState<any[]>([]);
-  const [numero,setNumero]=useState('');
-  const [etage,setEtage]=useState('RDC');
-  const load=useCallback(async()=>{const {data}=await supabase.from('tables').select('*').order('etage').order('numero');setItems(data||[]);},[]);
-  useEffect(()=>{load();},[load]);
-  const save=async()=>{if(!numero)return;await supabase.from('tables').insert([{numero:Number(numero),etage,statut:'libre'}]);setNumero('');load();};
-  const del=async(id:any)=>{if(!confirm('Supprimer?'))return;await supabase.from('tables').delete().eq('id',id);load();};
-  return(<div><div className="flex gap-2 mb-4 bg-zinc-900 p-3 rounded-xl"><input placeholder="N°" type="number" value={numero} onChange={e=>setNumero(e.target.value)} className="bg-black border border-zinc-700 rounded-xl px-3 py-3 w-20 text-center font-bold"/><select value={etage} onChange={e=>setEtage(e.target.value)} className="bg-black border border-zinc-700 rounded-xl px-3 py-3 flex-1 font-bold"><option value="RDC">RDC</option><option value="1er">1er Étage</option><option value="Emporte">Emporte</option><option value="GLOVO">GLOVO</option></select><button onClick={save} className="bg-orange-600 px-5 rounded-xl font-black">+ AJOUTER</button></div><div className="grid grid-cols-3 gap-2">{items.map((t:any)=><div key={t.id} className="bg-zinc-900 p-3 rounded-xl text-center"><div className="font-black">T{t.numero} - {t.etage}</div><button onClick={()=>del(t.id)} className="text-red-400 text-xs mt-1">X</button></div>)}</div></div>);
-}
-
-// ===== MENU TAB JDID - FIHA PRIX NORMAL + PRIX GLOVO =====
+// ===== MENU TAB - JDID: CATEGORIES LAWAL =====
 function MenuTab(){
   const [menus,setMenus]=useState<any[]>([]);
   const [cats,setCats]=useState<any[]>([]);
@@ -213,16 +202,120 @@ function MenuTab(){
   const [rec,setRec]=useState<any[]>([]);
   const [show,setShow]=useState(false);
   const [edit,setEdit]=useState<any>(null);
-  const load=useCallback(async()=>{const a=await supabase.from('menu').select('*').order('nom');const b=await supabase.from('categories').select('*').order('ordre');const c=await supabase.from('matiere_premiere').select('*').order('nom');const d=await supabase.from('recette').select('*');setMenus(a.data||[]);setCats(b.data||[]);setMats(c.data||[]);setRec(d.data||[]);},[]);
+  const [selectedCat,setSelectedCat]=useState<string | null>(null); // <-- JDID
+  const [search,setSearch]=useState('');
+
+  const load=useCallback(async()=>{
+    const a=await supabase.from('menu').select('*').order('nom');
+    const b=await supabase.from('categories').select('*').order('ordre');
+    const c=await supabase.from('matiere_premiere').select('*').order('nom');
+    const d=await supabase.from('recette').select('*');
+    setMenus(a.data||[]);setCats(b.data||[]);setMats(c.data||[]);setRec(d.data||[]);
+  },[]);
   useEffect(()=>{load();},[load]);
-  return <div><div className="flex justify-between mb-3"><h2 className="font-bold">Menu {menus.length} - Normal + Glovo</h2><button onClick={()=>{setEdit(null);setShow(true);}} className="bg-orange-600 px-4 py-2 rounded-xl font-bold">+ Plat</button></div><div className="grid md:grid-cols-2 gap-3">{menus.map((m:any)=>{const ings=rec.filter((r:any)=>r.menu_id===m.id);return <div key={m.id} className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden"><div className="h-40 bg-zinc-800">{m.image_url?<img src={m.image_url} className="w-full h-full object-cover"/>:<div className="h-full flex items-center justify-center text-xs text-zinc-500">Sans photo</div>}</div><div className="p-3"><div className="flex justify-between"><div><div className="font-bold">{m.nom}</div><div className="text-xs"><span className="text-white">{m.prix} DH Normal</span> {m.prix_glovo?<span className="text-yellow-400 ml-2">| {m.prix_glovo} DH Glovo 💰</span>:<span className="text-zinc-500 ml-2">| Glovo auto +30%</span>}</div><div className="text-[10px] text-zinc-500 mt-1">{ings.length} ingrédients • {m.categorie}</div></div><div className="flex gap-1"><button onClick={()=>{setEdit(m);setShow(true);}} className="p-2 bg-zinc-800 rounded-lg"><Edit3 className="w-4 h-4"/></button><button onClick={async()=>{if(confirm('Supprimer?')){await supabase.from('menu').delete().eq('id',m.id);load();}}} className="p-2 bg-red-900 rounded-lg"><Trash2 className="w-4 h-4"/></button></div></div></div></div>})}</div>{show&&<MenuForm menu={edit} categories={cats} matieres={mats} recs={rec.filter((r:any)=>r.menu_id===edit?.id)} onClose={()=>{setShow(false);setEdit(null);}} onSaved={load}/>}</div>
+
+  const filteredMenus = menus.filter((m:any)=>{
+    if(!selectedCat) return false;
+    const matchCat = (m.categorie===selectedCat);
+    const matchSearch = search ? m.nom.toLowerCase().includes(search.toLowerCase()) : true;
+    return matchCat && matchSearch;
+  });
+
+  return <div>
+    {/* HEADER */}
+    <div className="flex justify-between items-center mb-4">
+      <div className="flex items-center gap-2">
+        {selectedCat && (
+          <button onClick={()=>{setSelectedCat(null); setSearch('');}} className="bg-zinc-800 p-2 rounded-full">
+            <ArrowLeft className="w-4 h-4"/>
+          </button>
+        )}
+        <h2 className="font-bold text-sm">
+          {selectedCat ? `${selectedCat} - ${filteredMenus.length} plats` : `Menu ${menus.length} - Categories (${cats.length})`}
+        </h2>
+      </div>
+      <button onClick={()=>{setEdit(null);setShow(true);}} className="bg-orange-600 px-4 py-2 rounded-xl font-bold text-xs">+ Plat</button>
+    </div>
+
+    {/* LAWAL: CATEGORIES */}
+    {!selectedCat ? (
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        {cats.map((cat:any)=>{
+          const count = menus.filter((m:any)=>m.categorie===cat.nom).length;
+          const firstPlat = menus.find((m:any)=>m.categorie===cat.nom);
+          return (
+            <button
+              key={cat.id}
+              onClick={()=>setSelectedCat(cat.nom)}
+              className="bg-zinc-900 border-2 border-zinc-800 hover:border-orange-500 rounded-2xl overflow-hidden text-left group"
+            >
+              <div className="h-36 bg-zinc-800 relative overflow-hidden">
+                {firstPlat?.image_url ? (
+                  <img src={firstPlat.image_url} className="w-full h-full object-cover group-hover:scale-105 transition" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-zinc-600 text-[11px]">Sans photo</div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                <div className="absolute bottom-2 left-3">
+                  <div className="font-black text-white text-sm">{cat.label}</div>
+                  <div className="text-[10px] text-zinc-300">{count} plats →</div>
+                </div>
+              </div>
+              <div className="p-2.5 bg-[#1a1a1a]">
+                <div className="text-[10px] text-zinc-500">{cat.nom} • {count} ingrédients</div>
+              </div>
+            </button>
+          )
+        })}
+        {cats.length===0 && <div className="col-span-2 text-center py-10 text-zinc-600 text-xs">Ma kayn 7ta categorie - zid men CATEGORIES</div>}
+      </div>
+    ) : (
+      /* MAN BA3D: PLATS DYAL CATEGORIE */
+      <div>
+        <div className="mb-3">
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={`Qalleb f ${selectedCat}...`} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm" />
+        </div>
+        <div className="grid md:grid-cols-2 gap-3">
+          {filteredMenus.map((m:any)=>{
+            const ings=rec.filter((r:any)=>r.menu_id===m.id);
+            return (
+              <div key={m.id} className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
+                <div className="h-40 bg-zinc-800">{m.image_url?<img src={m.image_url} className="w-full h-full object-cover"/>:<div className="h-full flex items-center justify-center text-xs text-zinc-500">Sans photo</div>}</div>
+                <div className="p-3">
+                  <div className="flex justify-between">
+                    <div>
+                      <div className="font-bold text-sm">{m.nom}</div>
+                      <div className="text-xs"><span className="text-white">{m.prix} DH Normal</span> {m.prix_glovo?<span className="text-yellow-400 ml-2">| {m.prix_glovo} DH Glovo 💰</span>:<span className="text-zinc-500 ml-2">| Glovo auto +30%</span>}</div>
+                      <div className="text-[10px] text-zinc-500 mt-1">{ings.length} ingrédients • {m.categorie}</div>
+                    </div>
+                    <div className="flex gap-1">
+                      <button onClick={()=>{setEdit(m);setShow(true);}} className="p-2 bg-zinc-800 rounded-lg"><Edit3 className="w-4 h-4"/></button>
+                      <button onClick={async()=>{if(confirm('Supprimer?')){await supabase.from('menu').delete().eq('id',m.id);load();}}} className="p-2 bg-red-900 rounded-lg"><Trash2 className="w-4 h-4"/></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        {filteredMenus.length===0 && (
+          <div className="text-center py-10 bg-zinc-900/50 rounded-xl border border-dashed border-zinc-800 mt-4">
+            <div className="text-zinc-500 text-sm">Ma kayn 7ta plat f {selectedCat}</div>
+            <button onClick={()=>{setEdit(null);setShow(true);}} className="mt-3 bg-orange-600 px-5 py-2 rounded-full text-xs font-bold">+ Zid Plat f {selectedCat}</button>
+          </div>
+        )}
+      </div>
+    )}
+
+    {show&&<MenuForm menu={edit} categories={cats} matieres={mats} recs={rec.filter((r:any)=>r.menu_id===edit?.id)} onClose={()=>{setShow(false);setEdit(null);}} onSaved={load} defaultCategorie={selectedCat}/>}
+  </div>
 }
 
-function MenuForm({menu,categories,matieres,recs,onClose,onSaved}:any){
+function MenuForm({menu,categories,matieres,recs,onClose,onSaved,defaultCategorie}:any){
   const [nom,setNom]=useState(menu?.nom||'');
   const [prix,setPrix]=useState(menu?String(menu.prix):'');
   const [prixGlovo,setPrixGlovo]=useState(menu?.prix_glovo?String(menu.prix_glovo):'');
-  const [cat,setCat]=useState(menu?.categorie||categories[0]?.nom||'');
+  const [cat,setCat]=useState(menu?.categorie||defaultCategorie||categories[0]?.nom||'');
   const [img,setImg]=useState(menu?.image_url||'');
   const [ings,setIngs]=useState<any[]>(recs||[]);
   const [sel,setSel]=useState('');
@@ -247,7 +340,7 @@ function MenuForm({menu,categories,matieres,recs,onClose,onSaved}:any){
     if(!nom||!prix) return alert('Nom + Prix Normal');
     const prixNormal = parseFloat(prix)||0;
     let prixG = parseFloat(prixGlovo);
-    if(!prixG || prixG<=0) prixG = Math.round(prixNormal*1.3); // auto +30% ila ma 3martich Glovo
+    if(!prixG || prixG<=0) prixG = Math.round(prixNormal*1.3);
     const p={nom,prix:prixNormal,prix_glovo:prixG,categorie:cat,image_url:img,disponible:true};
     let id=menu?.id;
     if(menu){await supabase.from('menu').update(p).eq('id',menu.id);}
@@ -258,17 +351,27 @@ function MenuForm({menu,categories,matieres,recs,onClose,onSaved}:any){
   return <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"><div className="bg-zinc-900 rounded-2xl w-full max-w-lg border border-zinc-800"><div className="p-4 flex justify-between border-b border-zinc-800"><h3 className="font-bold">Plat - {ings.length} ing - 2 Prix</h3><button onClick={onClose}><X className="w-5 h-5"/></button></div><div className="p-4 space-y-3 max-h-[75vh] overflow-auto">
     <input value={nom} onChange={e=>setNom(e.target.value)} placeholder="Nom du plat" className="w-full bg-black p-3 rounded-xl border border-zinc-700"/>
     <div className="grid grid-cols-2 gap-2">
-      <div><label className="text-[10px] text-zinc-400 font-bold">PRIX NORMAL (RDC/1er/Emporte)</label><input value={prix} onChange={e=>setPrix(e.target.value)} type="number" placeholder="Ex: 30" className="w-full bg-black p-3 rounded-xl border border-zinc-700 mt-1"/><div className="text-[9px] text-zinc-500 mt-1">RDC / 1er / Emporte</div></div>
-      <div><label className="text-[10px] text-yellow-400 font-black">PRIX GLOVO 💰 (+ cher)</label><input value={prixGlovo} onChange={e=>setPrixGlovo(e.target.value)} type="number" placeholder="Ex: 40 - Auto +30% si vide" className="w-full bg-yellow-950/30 border-2 border-yellow-600 p-3 rounded-xl mt-1 text-yellow-300 font-bold"/><div className="text-[9px] text-yellow-500 mt-1">Glovo - ila khlitiha khawya, auto +30%</div></div>
+      <div><label className="text-[10px] text-zinc-400 font-bold">PRIX NORMAL</label><input value={prix} onChange={e=>setPrix(e.target.value)} type="number" placeholder="Ex: 30" className="w-full bg-black p-3 rounded-xl border border-zinc-700 mt-1"/></div>
+      <div><label className="text-[10px] text-yellow-400 font-black">PRIX GLOVO 💰</label><input value={prixGlovo} onChange={e=>setPrixGlovo(e.target.value)} type="number" placeholder="Auto +30%" className="w-full bg-yellow-950/30 border-2 border-yellow-600 p-3 rounded-xl mt-1 text-yellow-300 font-bold"/></div>
     </div>
     <select value={cat} onChange={e=>setCat(e.target.value)} className="w-full bg-black p-3 rounded-xl border border-zinc-700">{categories.map((c:any)=><option key={c.id} value={c.nom}>{c.label}</option>)}</select>
     <div className="bg-black border border-zinc-700 rounded-xl p-3"><div className="text-xs font-bold mb-2">Recette - Matières ({ings.length})</div><div className="flex gap-2 mb-2"><select value={sel} onChange={e=>{setSel(e.target.value); const mat=matieres.find((m:any)=>m.id===e.target.value); if(mat) setUnite(mat.unite);}} className="flex-1 bg-zinc-900 p-2.5 rounded-xl border border-zinc-700 text-xs"><option value="">Choisir matière</option>{matieres.filter((m:any)=>!ings.some((i:any)=>i.matiere_id===m.id)).map((m:any)=><option key={m.id} value={m.id}>{m.nom} ({m.quantite} {m.unite})</option>)}</select><input value={qte} onChange={e=>setQte(e.target.value)} type="number" className="w-20 bg-zinc-900 p-2.5 rounded-xl border border-zinc-700 text-xs"/><select value={unite} onChange={e=>setUnite(e.target.value)} className="w-16 bg-zinc-900 p-2.5 rounded-xl border border-zinc-700 text-xs"><option>g</option><option>kg</option><option>ml</option><option>L</option><option>pcs</option></select><button onClick={addIng} className="bg-orange-600 px-3 rounded-xl text-xs font-bold">+</button></div>{ings.map((ing:any,i:any)=><div key={i} className="flex justify-between bg-zinc-900 p-2 rounded-lg text-xs mb-1"><span>{ing._nom||matieres.find((m:any)=>m.id===ing.matiere_id)?.nom} - {ing.qte_necessaire} {ing.unite}</span><button onClick={()=>setIngs(ings.filter((_:any,idx:any)=>idx!==i))} className="text-red-400">X</button></div>)}</div>
     <div className="bg-black border-2 border-dashed border-orange-500/40 rounded-xl p-3"><label className="text-xs text-orange-400 font-bold flex items-center gap-1 mb-2"><ImageIcon className="w-4 h-4"/> PHOTO</label><div className="flex gap-2 items-center"><label className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl p-3 text-center cursor-pointer flex items-center justify-center gap-2"><Upload className="w-4 h-4"/><span className="text-sm font-bold">{uploading?'Upload...':'Choisir'}</span><input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" /></label>{preview && <img src={preview} className="w-16 h-16 rounded-xl object-cover border-2 border-orange-500" />}</div></div>
-  </div><div className="p-4 border-t border-zinc-800 flex gap-2"><button onClick={onClose} className="flex-1 bg-zinc-800 py-3 rounded-xl">Annuler</button><button onClick={save} className="flex-1 bg-orange-600 py-3 rounded-xl font-bold">Sauver {prix} DH / {prixGlovo||Math.round((parseFloat(prix)||0)*1.3)} DH Glovo</button></div></div></div>
+  </div><div className="p-4 border-t border-zinc-800 flex gap-2"><button onClick={onClose} className="flex-1 bg-zinc-800 py-3 rounded-xl">Annuler</button><button onClick={save} className="flex-1 bg-orange-600 py-3 rounded-xl font-bold">Sauver</button></div></div></div>
 }
 
 function CategoriesTab(){const [cats,setCats]=useState<any[]>([]);const [show,setShow]=useState(false);const [edit,setEdit]=useState<any>(null);const load=useCallback(async()=>{const {data}=await supabase.from('categories').select('*').order('ordre');setCats(data||[]);},[]);useEffect(()=>{load();},[load]);return <div><div className="flex justify-between mb-2"><h2 className="font-bold">Categories</h2><button onClick={()=>{setEdit(null);setShow(true);}} className="bg-orange-600 px-3 py-2 rounded-xl">+ Cat</button></div>{cats.map((c:any)=><div key={c.id} className="bg-zinc-900 p-3 rounded-xl border border-zinc-800 flex justify-between mb-2"><div><div className="font-bold">{c.label}</div><div className="text-xs text-zinc-500">{c.nom}</div></div><div className="flex gap-1"><button onClick={()=>{setEdit(c);setShow(true);}} className="p-2 bg-zinc-800 rounded-lg"><Edit3 className="w-4 h-4"/></button><button onClick={async()=>{if(confirm('Supprimer?')){await supabase.from('categories').delete().eq('id',c.id);load();}}} className="p-2 bg-red-900 rounded-lg"><Trash2 className="w-4 h-4"/></button></div></div>)}{show&&<CatForm cat={edit} onClose={()=>{setShow(false);setEdit(null);}} onSaved={load}/>}</div>}
 function CatForm({cat,onClose,onSaved}:any){const [nom,setNom]=useState(cat?.nom||'');const [label,setLabel]=useState(cat?.label||'');const save=async()=>{if(!nom||!label) return alert('Nom+Label');const p={nom:nom.toLowerCase().replace(/\s/g,'_'),label,ordre:1};if(cat) await supabase.from('categories').update(p).eq('id',cat.id);else await supabase.from('categories').insert(p);onSaved();onClose();};return <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"><div className="bg-zinc-900 rounded-2xl w-full max-w-md border border-zinc-800 p-5 space-y-3"><input value={label} onChange={e=>{setLabel(e.target.value);if(!cat) setNom(e.target.value.toLowerCase().replace(/\s/g,'_'));}} placeholder="Label" className="w-full bg-black p-3 rounded-xl border border-zinc-700"/><input value={nom} onChange={e=>setNom(e.target.value)} placeholder="nom" className="w-full bg-black p-3 rounded-xl border border-zinc-700 text-xs"/><div className="flex gap-2"><button onClick={onClose} className="flex-1 bg-zinc-800 py-3 rounded-xl">Annuler</button><button onClick={save} className="flex-1 bg-orange-600 py-3 rounded-xl font-bold">Sauver</button></div></div></div>}
+function TablesTab(){
+  const [items,setItems]=useState<any[]>([]);
+  const [numero,setNumero]=useState('');
+  const [etage,setEtage]=useState('RDC');
+  const load=useCallback(async()=>{const {data}=await supabase.from('tables').select('*').order('etage').order('numero');setItems(data||[]);},[]);
+  useEffect(()=>{load();},[load]);
+  const save=async()=>{if(!numero)return;await supabase.from('tables').insert([{numero:Number(numero),etage,statut:'libre'}]);setNumero('');load();};
+  const del=async(id:any)=>{if(!confirm('Supprimer?'))return;await supabase.from('tables').delete().eq('id',id);load();};
+  return(<div><div className="flex gap-2 mb-4 bg-zinc-900 p-3 rounded-xl"><input placeholder="N°" type="number" value={numero} onChange={e=>setNumero(e.target.value)} className="bg-black border border-zinc-700 rounded-xl px-3 py-3 w-20 text-center font-bold"/><select value={etage} onChange={e=>setEtage(e.target.value)} className="bg-black border border-zinc-700 rounded-xl px-3 py-3 flex-1 font-bold"><option value="RDC">RDC</option><option value="1er">1er Étage</option><option value="Emporte">Emporte</option><option value="GLOVO">GLOVO</option></select><button onClick={save} className="bg-orange-600 px-5 rounded-xl font-black">+ AJOUTER</button></div><div className="grid grid-cols-3 gap-2">{items.map((t:any)=><div key={t.id} className="bg-zinc-900 p-3 rounded-xl text-center"><div className="font-black">T{t.numero} - {t.etage}</div><button onClick={()=>del(t.id)} className="text-red-400 text-xs mt-1">X</button></div>)}</div></div>);
+}
 function UsersTab(){const [users,setUsers]=useState<any[]>([]);const [show,setShow]=useState(false);const [edit,setEdit]=useState<any>(null);const load=useCallback(async()=>{const {data}=await supabase.from('utilisateurs').select('*').order('created_at',{ascending:false});setUsers(data||[]);},[]);useEffect(()=>{load();},[load]);return <div><div className="flex justify-between mb-3"><h2 className="font-bold">Users {users.length}</h2><button onClick={()=>{setEdit(null);setShow(true);}} className="bg-orange-600 px-4 py-2 rounded-xl font-bold">+ User</button></div>{users.map((u:any)=><div key={u.id} className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 flex justify-between mb-2"><div><div className="font-bold">{u.nom} <span className="text-xs bg-zinc-800 px-2 py-1 rounded-lg ml-2">{u.role}</span></div><div className="text-xs text-zinc-500">ID: {u.identifiant} | {u.code_acces}</div></div><div className="flex gap-1"><button onClick={()=>{setEdit(u);setShow(true);}} className="p-2.5 bg-zinc-800 rounded-xl"><Edit3 className="w-4 h-4"/></button><button onClick={async()=>{if(confirm('Supprimer?')){await supabase.from('utilisateurs').delete().eq('id',u.id);load();}}} className="p-2.5 bg-red-900 rounded-xl"><Trash2 className="w-4 h-4"/></button></div></div>)}{show&&<UserForm user={edit} onClose={()=>{setShow(false);setEdit(null);}} onSaved={load}/>}</div>}
 function UserForm({user,onClose,onSaved}:any){const [nom,setNom]=useState(user?.nom||'');const [ident,setIdent]=useState(user?.identifiant||'');const [code,setCode]=useState(user?.code_acces||'');const [role,setRole]=useState(user?.role||'serveur');const save=async()=>{ if(!nom||!ident||!code) return alert('3amar'); const payload:any={ nom, identifiant: ident.trim(), code_acces: code.trim(), role }; let error; if(user){ const res=await supabase.from('utilisateurs').update(payload).eq('id',user.id); error=res.error; } else { const res=await supabase.from('utilisateurs').insert(payload); error=res.error; } if(error){ alert(error.message); return; } onSaved(); onClose(); };return <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"><div className="bg-zinc-900 rounded-2xl w-full max-w-md border border-zinc-800 p-5 space-y-3"><div className="flex justify-between"><h3 className="font-bold">{user?'Modifier':'Nouveau'} User</h3><button onClick={onClose}><X className="w-5 h-5"/></button></div><input value={nom} onChange={e=>setNom(e.target.value)} placeholder="Nom" className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"/><input value={ident} onChange={e=>setIdent(e.target.value)} placeholder="Identifiant" className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"/><input value={code} onChange={e=>setCode(e.target.value)} placeholder="Code" className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"/><select value={role} onChange={e=>setRole(e.target.value)} className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"><option value="admin">admin</option><option value="serveur">serveur</option><option value="cuisine">cuisine</option><option value="caisse">caisse</option></select><div className="flex gap-2"><button onClick={onClose} className="flex-1 bg-zinc-800 py-3.5 rounded-xl">Annuler</button><button onClick={save} className="flex-1 bg-orange-600 py-3.5 rounded-xl font-bold">Sauver</button></div></div></div>}
 
@@ -370,10 +473,5 @@ function RapportsTab(){
     <div className="flex gap-2"><input type="date" value={date} onChange={e=>setDate(e.target.value)} className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-3 font-bold"/><button onClick={load} className="bg-orange-600 px-4 rounded-xl font-black">Refresh</button></div>
     <div className="bg-gradient-to-br from-zinc-900 to-black rounded-2xl p-4 border-2 border-orange-500/30"><div className="flex justify-between items-center mb-3"><h2 className="font-black text-lg flex items-center gap-2"><BarChart3 className="w-5 h-5 text-orange-500"/> RAPPORT {date}</h2><span className="text-xs bg-zinc-800 px-2 py-1 rounded-full">{cmds.length} commandes</span></div><div className="grid grid-cols-2 gap-3"><div className="bg-black rounded-xl p-3 border border-green-800"><div className="text-[10px] text-zinc-400">CA ENCAISSÉ</div><div className="font-black text-2xl text-green-400">{stats.totalEncaisse.toFixed(0)} DH</div><div className="text-[10px] text-zinc-500">{cmds.length} tickets • {stats.totalItems} plats</div></div><div className="bg-black rounded-xl p-3 border border-zinc-700"><div className="text-[10px] text-zinc-400">CA RÉEL</div><div className="font-black text-xl text-white">{stats.totalReel.toFixed(0)} DH</div><div className="text-[10px] text-orange-400">Perte: {(stats.offertReel+stats.remisePerte).toFixed(0)} DH</div></div></div></div>
     <div className="grid grid-cols-3 gap-2"><div className="bg-green-950/40 border border-green-700 rounded-xl p-3 text-center"><div className="text-[10px] text-green-300">ESPECE</div><div className="font-black text-green-400">{stats.espece.toFixed(0)}</div></div><div className="bg-blue-950/40 border border-blue-700 rounded-xl p-3 text-center"><div className="text-[10px] text-blue-300">TPE</div><div className="font-black text-blue-400">{stats.tpe.toFixed(0)}</div></div><div className="bg-purple-950/40 border border-purple-700 rounded-xl p-3 text-center"><div className="text-[10px] text-purple-300">CHEQUE</div><div className="font-black text-purple-400">{stats.cheque.toFixed(0)}</div></div><div className="bg-yellow-950/40 border border-yellow-600 rounded-xl p-3 text-center"><div className="text-[10px] text-yellow-300">REMISE</div><div className="font-black text-yellow-400">{stats.remiseEncaisse.toFixed(0)}</div><div className="text-[9px] text-red-400">Perte {stats.remisePerte.toFixed(0)}</div></div><div className="bg-orange-950/40 border border-orange-700 rounded-xl p-3 text-center"><div className="text-[10px] text-orange-300">OFFERT</div><div className="font-black text-orange-400">{stats.offertReel.toFixed(0)}</div></div><div className="bg-red-950/50 border-2 border-red-600 rounded-xl p-3 text-center"><div className="text-[10px] text-red-300 font-black">ANNULE</div><div className="font-black text-red-400">{totalsAnnule.toFixed(0)}</div><div className="text-[9px] text-red-300">{annules.length} cmds</div></div></div>
-    {hoursSorted.length>0 && (<div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800"><h3 className="font-black mb-3 flex items-center gap-2"><Clock className="w-4 h-4 text-orange-500"/> PAR HEURE</h3><div className="space-y-2">{hoursSorted.map((h:any)=>{const max=Math.max(...Object.values(stats.byHour) as any); const val=stats.byHour[h]; const pct=max? (val/max)*100 : 0; return <div key={h} className="flex items-center gap-2"><div className="w-12 text-xs font-bold">{h}h</div><div className="flex-1 bg-black rounded-full h-6 overflow-hidden"><div className="bg-orange-600 h-6 flex items-center justify-end pr-2 text-[10px] font-black" style={{width:`${pct}%`}}>{val.toFixed(0)} DH</div></div></div>})}</div></div>)}
-    {topPlats.length>0 && (<div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800"><h3 className="font-black mb-3 flex items-center gap-2"><Utensils className="w-4 h-4 text-green-500"/> TOP 10 PLATS</h3><div className="space-y-2">{topPlats.map((plat:any,i:any)=>{const qte=stats.byPlat[plat]; const ca=stats.byPlat[plat+'_ca']||0; return <div key={plat} className="flex justify-between items-center bg-black rounded-xl p-2.5 border border-zinc-800"><div className="flex items-center gap-2"><span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${i===0?'bg-yellow-500 text-black':i===1?'bg-zinc-400 text-black':i===2?'bg-orange-600 text-white':'bg-zinc-800'}`}>{i+1}</span><span className="font-bold text-sm">{plat}</span></div><div className="text-right"><div className="font-black text-white">{qte}x</div><div className="text-[10px] text-zinc-400">{ca.toFixed(0)} DH</div></div></div>})}</div></div>)}
-    <div className="grid grid-cols-2 gap-3"><div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800"><h3 className="font-black mb-3 flex items-center gap-2 text-sm"><Users className="w-4 h-4 text-blue-500"/> PAR SERVEUR</h3>{topServeurs.map((s:any)=><div key={s} className="flex justify-between py-1.5 border-b border-zinc-800 last:border-0"><div><div className="font-bold text-sm">{s}</div><div className="text-[10px] text-zinc-500">{stats.byServeur[s+'_count']} cmds</div></div><div className="font-black text-sm">{stats.byServeur[s].toFixed(0)} DH</div></div>)}</div><div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800"><h3 className="font-black mb-3 flex items-center gap-2 text-sm"><MapPin className="w-4 h-4 text-purple-500"/> PAR ÉTAGE</h3>{topEtages.map((e:any)=><div key={e} className="flex justify-between py-1.5 border-b border-zinc-800 last:border-0"><div><div className="font-bold text-sm">{e}</div><div className="text-[10px] text-zinc-500">{stats.byEtage[e+'_count']} cmds</div></div><div className="font-black text-sm">{stats.byEtage[e].toFixed(0)} DH</div></div>)}</div></div>
-    <h3 className="font-black text-green-400">✅ PAYÉES ({cmds.length})</h3>
-    {cmds.map((c:any)=>{const its=itemsMap[c.id]||[];return (<div key={c.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 mb-3"><div className="flex justify-between items-center mb-2"><div className="flex items-center gap-2"><span className="font-black text-white">{getTableLabel(c)}</span><span className="text-xs bg-zinc-800 px-2 py-1 rounded-full">{getEtage(c)}</span><span className="text-xs text-zinc-400">{c.serveur_nom}</span></div><div className="flex items-center gap-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${c.payment_method==='espece'?'bg-green-600':c.payment_method==='tpe'?'bg-blue-600':c.payment_method==='cheque'?'bg-purple-600':c.payment_method==='offert'?'bg-orange-600':c.payment_method==='remise'?'bg-yellow-500 text-black':'bg-white text-black'}`}>{c.payment_method?.toUpperCase()}</span><span className="font-black text-orange-400">{Number(c.total_final??c.total??0).toFixed(0)} DH</span></div></div><div className="bg-black/60 rounded-lg p-2 space-y-1">{its.map((it:any)=>{const prix=Number(it.qte||1)*Number(it.prix||0); const m=(it.payment_method||'').toLowerCase(); const perc=Number(it.remise_percent||0); const finalP=m==='offert'?0:m==='remise'?prix-prix*perc/100:prix; return <div key={it.id} className="flex justify-between text-sm py-1 border-b border-zinc-800/50 last:border-0"><span className="text-white">{it.qte}x {it.menu_nom||it.nom}</span><span className="text-zinc-400">{c.payment_method==='mixte'?`${finalP.toFixed(0)}`:`${prix.toFixed(0)}`} DH</span></div>})}</div></div>)})}
   </div>
 }
