@@ -16,11 +16,14 @@ function TablesView({ onSelectTable, profil, onLogout }: any) {
   const [commandes, setCommandes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
+    // 👉 7ayadna GLOVO man serveur - mayjibch tables dyal GLOVO
     const [{ data: t }, { data: c }] = await Promise.all([
-      supabase.from('tables').select('*').order('etage').order('numero'),
+      supabase.from('tables').select('*').neq('etage','GLOVO').order('etage').order('numero'),
       supabase.from('commandes').select('*').in('statut', ['en_attente', 'en_preparation', 'pret']),
     ]);
-    setTables(t || []); setCommandes(c || []); setLoading(false);
+    // Filter zyada f client - 7ayad GLOVO
+    const filtered = (t||[]).filter((x:any)=> x.etage !== 'GLOVO');
+    setTables(filtered); setCommandes(c || []); setLoading(false);
   }, []);
   useEffect(() => { load(); const i = setInterval(load, 3000); return () => clearInterval(i); }, [load]);
   const getStatus = (id: string) => {
@@ -34,7 +37,6 @@ function TablesView({ onSelectTable, profil, onLogout }: any) {
   const rdc = tables.filter((t:any)=>t.etage==='RDC'||!t.etage);
   const premier = tables.filter((t:any)=>t.etage==='1er');
   const emporte = tables.filter((t:any)=>t.etage==='Emporte' || t.etage==='EMPORTE');
-  const glovo = tables.filter((t:any)=>t.etage==='GLOVO');
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -43,7 +45,7 @@ function TablesView({ onSelectTable, profil, onLogout }: any) {
         <button onClick={onLogout} className="bg-black text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1"><LogOut className="w-4 h-4"/>Logout</button>
       </div>
       <div className="p-4 max-w-4xl mx-auto">
-        <h2 className="text-xl font-bold text-white mb-6">Tables - {tables.length}</h2>
+        <h2 className="text-xl font-bold text-white mb-6">Tables - {tables.length} (Sans GLOVO)</h2>
         
         {rdc.length>0 && (
           <div className="mb-8">
@@ -66,14 +68,6 @@ function TablesView({ onSelectTable, profil, onLogout }: any) {
             <div className="flex items-center gap-2 mb-3"><div className="w-2 h-2 rounded-full bg-orange-500"></div><h3 className="font-black text-orange-400 text-sm">EMPORTE - {emporte.length} tables</h3></div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {emporte.map((t) => { const s = getStatus(t.id); return <button key={t.id} onClick={() => onSelectTable(t)} className={`aspect-square rounded-2xl flex flex-col items-center justify-center border-2 ${s==='pret'?'bg-green-900/40 border-green-500':s==='en_cours'?'bg-orange-950/40 border-orange-600':'bg-[#1A1A1A] border-orange-900/30'}`}><div className="text-3xl font-bold text-white">{t.numero}</div><div className="text-[10px] text-orange-400">Emporte</div><div className="text-xs mt-1 text-gray-500">{s}</div></button> })}
-            </div>
-          </div>
-        )}
-        {glovo.length>0 && (
-          <div className="mb-8">
-            <div className="flex items-center gap-2 mb-3"><div className="w-2 h-2 rounded-full bg-yellow-500"></div><h3 className="font-black text-yellow-400 text-sm">GLOVO - {glovo.length} tables</h3></div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {glovo.map((t) => { const s = getStatus(t.id); return <button key={t.id} onClick={() => onSelectTable(t)} className={`aspect-square rounded-2xl flex flex-col items-center justify-center border-2 ${s==='pret'?'bg-green-900/40 border-green-500':s==='en_cours'?'bg-yellow-950/40 border-yellow-600':'bg-[#1A1A1A] border-yellow-900/30'}`}><div className="text-3xl font-bold text-white">{t.numero}</div><div className="text-[10px] text-yellow-400">GLOVO</div><div className="text-xs mt-1 text-gray-500">{s}</div></button> })}
             </div>
           </div>
         )}
@@ -192,7 +186,6 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
 
   if (loading) return <div className="flex justify-center py-12"><div className="w-8 h-8 border-2 border-[#FF6B00] border-t-transparent rounded-full animate-spin" /></div>;
 
-  // STYLE ZWIN B7AL TASWIRA - VERSION JDIDA
   if (!selectedCat) {
     const catIcons: any = {
       'FTOUR': '🍳', 'PETIT-DÉJEUNER': '🍳', 'PETIT-DEJEUNER': '🍳',
@@ -233,10 +226,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
                 >
                   <div className={`w-full h-full rounded-[15px] flex items-center gap-3 px-4 relative overflow-hidden
                     ${isZak ? 'bg-gradient-to-br from-yellow-400 to-orange-500' : 'bg-[#121212] group-active:bg-[#1a1a1a]'}`}>
-                    
-                    {/* Parallelogram light effect b7al tswira */}
                     <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-r from-transparent via-white/[0.04] to-transparent" style={{transform:'skew(-18deg)'}} />
-                    
                     <div className="text-[28px] shrink-0">{icon}</div>
                     <div className="flex-1 min-w-0">
                       <div className={`font-black text-[11px] leading-[1.15] uppercase tracking-wide ${isZak ? 'text-black' : 'text-white'}`}>{cat.nom}</div>
@@ -247,7 +237,6 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
               )
             })}
           </div>
-          <div className="mt-6 flex justify-center"><div className="bg-white/[0.04] border border-white/[0.06] rounded-full px-4 py-1.5 text-[9px] text-white/20 tracking-[0.2em]">MARSILIA FOOD • HAJ FATEH</div></div>
         </div>
 
         {cartItems.length > 0 && (
@@ -286,7 +275,6 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
             );
           })}
         </div>
-        {filteredMenus.length===0 && <div className="text-center text-gray-500 mt-12">Aucun plat dans {selectedCat}</div>}
       </div>
 
       {cartItems.length > 0 && (
@@ -303,7 +291,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
                     </div>
                     {editingNoteId===id && (
                       <div className="flex gap-2 mt-1">
-                        <input autoFocus value={tempNote} onChange={e=>setTempNote(e.target.value)} placeholder="Ex: bla bsla, bla maticha, zayd har" className="flex-1 bg-[#1E1E1E] border border-white/10 rounded-full px-4 py-2.5 text-sm text-white outline-none focus:border-[#FF6B00]"/>
+                        <input autoFocus value={tempNote} onChange={e=>setTempNote(e.target.value)} placeholder="Ex: bla bsla" className="flex-1 bg-[#1E1E1E] border border-white/10 rounded-full px-4 py-2.5 text-sm text-white outline-none focus:border-[#FF6B00]"/>
                         <button onClick={()=>saveNote(id)} className="bg-[#FF6B00] px-4 rounded-full text-sm font-black">OK</button>
                         <button onClick={()=>setEditingNoteId(null)} className="bg-white/10 px-3 rounded-full text-sm">X</button>
                       </div>
