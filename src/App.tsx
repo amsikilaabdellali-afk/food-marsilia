@@ -48,11 +48,13 @@ export default function App(){
   const role=String(profil.user.role||'').toLowerCase().trim();
   const id=String(profil.user.identifiant||'').toLowerCase().trim();
   
-  // ===== FIX: said ma hiyach serveur! =====
   const isServeur = role==='serveur' || /^s\d+$/.test(id) || (id.startsWith('s') && id !== 'said' && id.length <= 3);
   const isCuisine = role==='cuisine' || id==='said';
   const isCaisse = role==='caisse' || id==='c1';
   const isAdmin = !isServeur && !isCuisine && !isCaisse;
+
+  // CUISINE w SERVEUR bla badge, CAISSE w ADMIN b badge
+  const needsBadge = isCaisse || isAdmin;
 
   const onLogout=()=>{localStorage.clear();setProfil(null);setBadgeVerified(false);setBadgeType(null);location.reload();};
 
@@ -60,7 +62,7 @@ export default function App(){
     const type = checkBadgeType(badgeInput.trim());
     if(type){
       if(type==='caisse' && !isCaisse){
-        alert('❌ Badge CAISSE ghir kaydkhal CAISSE safi\nKhass PATRON bach tadkhal '+role.toUpperCase());
+        alert('❌ Badge CAISSE ghir CAISSE');
         setBadgeInput(''); return;
       }
       setBadgeType(type); setBadgeVerified(true); setShowBadgePopup(false); setBadgeInput('');
@@ -93,10 +95,10 @@ export default function App(){
       <div className="bg-zinc-900 border-2 border-yellow-400 rounded-2xl p-6 w-full max-w-sm text-center">
         <div className="w-20 h-20 bg-yellow-400 rounded-full flex items-center justify-center mx-auto mb-4"><Lock className="w-10 h-10 text-black" /></div>
         <h3 className="font-black text-white">BADGE REQUIS 🔒</h3>
-        <p className="text-zinc-400 text-xs mt-1">Bach tadkhal {role.toUpperCase()} - {id.toUpperCase()} - {isCuisine?'CUISINE': isCaisse?'CAISSE': isServeur?'SERVEUR':'ADMIN'}</p>
+        <p className="text-zinc-400 text-xs mt-1">Bach tadkhal {role.toUpperCase()} - {id.toUpperCase()}</p>
         <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
-          <div className="bg-zinc-800 border border-yellow-600 rounded-lg p-3"><div className="text-yellow-400 font-black">PATRON 👑</div><div className="text-zinc-500 text-[9px]">Lkochi</div><div className="text-zinc-600 mt-1">••••••••</div></div>
-          <div className="bg-zinc-800 border border-green-600 rounded-lg p-3"><div className="text-green-400 font-black">CAISSE 💰</div><div className="text-zinc-500 text-[9px]">Ghir Caisse</div><div className="text-zinc-600 mt-1">••••••••</div></div>
+          <div className="bg-zinc-800 border border-yellow-600 rounded-lg p-3"><div className="text-yellow-400 font-black">PATRON 👑</div><div className="text-zinc-500 text-[9px]">Lkochi</div><div className="text-zinc-600">••••••••</div></div>
+          <div className="bg-zinc-800 border border-green-600 rounded-lg p-3"><div className="text-green-400 font-black">CAISSE 💰</div><div className="text-zinc-500 text-[9px]">Ghir Caisse</div><div className="text-zinc-600">••••••••</div></div>
         </div>
         <input ref={badgeRef} value={badgeInput} onChange={e=>setBadgeInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&confirmBadge()} type="password" placeholder="••••••••" className="w-full mt-3 bg-black border-2 border-yellow-400 rounded-xl p-4 text-center text-white font-black text-xl tracking-[0.5em] outline-none" autoFocus />
         <div className="flex gap-2 mt-4">
@@ -140,12 +142,13 @@ export default function App(){
 
   return (
     <div className="min-h-screen bg-black">
-      {!badgeVerified && !isServeur && <BadgePopup />}
+      {needsBadge && !badgeVerified && <BadgePopup />}
       <ChangeBadgePopup />
-      {badgeVerified && !isServeur && (
+      
+      {needsBadge && badgeVerified && (
         <div className="bg-zinc-900 border-b border-zinc-800 px-3 py-2 flex justify-between items-center sticky top-0 z-40">
           <div className={`text-[10px] font-black px-3 py-1 rounded-full ${badgeType==='patron'?'bg-yellow-500 text-black':'bg-green-600 text-white'}`}>
-            {badgeType==='patron'?'PATRON 👑':'CAISSE 💰'} - {id.toUpperCase()} - {isCuisine?'CUISINE': isCaisse?'CAISSE':'ADMIN'}
+            {badgeType==='patron'?'PATRON 👑':'CAISSE 💰'} - {id.toUpperCase()}
           </div>
           <div className="flex gap-2">
             <button onClick={startChangeBadge} className="bg-orange-600 text-white px-2 py-1 rounded-full text-[9px] font-black">BADAL</button>
@@ -154,23 +157,16 @@ export default function App(){
           </div>
         </div>
       )}
-      
-      {/* FIX HNA - TARTIB SAHIH */}
-      {isCaisse && (badgeVerified || true) && <Caisse profil={profil} onLogout={onLogout} />}
-      {isCuisine && (badgeType==='patron' || badgeVerified) && <Cuisine profil={profil} onLogout={onLogout} />}
+
+      {/* CUISINE bla badge - direct */}
+      {isCuisine && <Cuisine profil={profil} onLogout={onLogout} />}
       {isServeur && <Serveur profil={profil} onLogout={onLogout} />}
-      {isAdmin && badgeType==='patron' && <div className="min-h-screen bg-black"><div className="bg-red-600 text-white text-center py-2 text-xs font-bold flex justify-center gap-3">ADMIN: {profil.user.nom} ({profil.user.identifiant})<button onClick={onLogout} className="bg-black px-3 py-1 rounded">Logout</button></div><Admin /></div>}
+      {isCaisse && badgeVerified && <Caisse profil={profil} onLogout={onLogout} />}
+      {isAdmin && badgeVerified && badgeType==='patron' && <div className="min-h-screen bg-black"><div className="bg-red-600 text-white text-center py-2 text-xs font-bold flex justify-center gap-3">ADMIN: {profil.user.nom} ({profil.user.identifiant})<button onClick={onLogout} className="bg-black px-3 py-1 rounded">Logout</button></div><Admin /></div>}
       
-      {isCuisine && badgeType==='caisse' && (
-        <div className="min-h-screen bg-black flex items-center justify-center p-6 text-center">
-          <div><div className="text-6xl mb-4">🔒</div><h2 className="text-white font-black">Badge CAISSE ghir CAISSE</h2><p className="text-zinc-500 text-xs mt-2">CUISINE khass PATRON</p><button onClick={()=>{setBadgeVerified(false); setShowBadgePopup(true);}} className="mt-4 bg-yellow-500 text-black px-6 py-3 rounded-xl font-black">Badal Badge 👑</button></div>
-        </div>
-      )}
-      {isAdmin && badgeType!=='patron' && badgeVerified && (
-        <div className="min-h-screen bg-black flex items-center justify-center p-6 text-center">
-          <div><div className="text-6xl mb-4">🔒</div><h2 className="text-white font-black">ADMIN khass PATRON</h2><button onClick={()=>{setBadgeVerified(false); setShowBadgePopup(true);}} className="mt-4 bg-yellow-500 text-black px-6 py-3 rounded-xl font-black">Badal Badge 👑</button></div>
-        </div>
-      )}
+      {isCaisse && !badgeVerified && <div className="min-h-screen bg-black flex items-center justify-center"><div className="text-zinc-600 text-sm">Qareb Badge... 🔒</div></div>}
+      {isAdmin && !badgeVerified && <div className="min-h-screen bg-black flex items-center justify-center"><div className="text-zinc-600 text-sm">Qareb Badge Patron... 👑</div></div>}
+      {isAdmin && badgeVerified && badgeType==='caisse' && <div className="min-h-screen bg-black flex items-center justify-center p-6 text-center"><div><div className="text-6xl mb-4">🔒</div><h2 className="text-white font-black">ADMIN khass PATRON</h2><p className="text-zinc-500 text-xs mt-2">Badge CAISSE ma 3andouch lha9</p><button onClick={()=>{setBadgeVerified(false); setShowBadgePopup(true);}} className="mt-4 bg-yellow-500 text-black px-6 py-3 rounded-xl font-black">Badal Badge 👑</button></div></div>}
     </div>
   );
 }
