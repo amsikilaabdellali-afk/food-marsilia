@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { DollarSign, LogOut, Trash2, X, Wifi, Lock } from 'lucide-react';
 
-// ===== HNA FIX - BADGE DYALEK + PERMANENT =====
 const BADGE_FIXE = ['0002355916', '2355916', 'MARSILIA2024', 'MARSILIA', '1234'];
 const MASTER_CODE = 'ADMIN999';
 
@@ -23,100 +22,55 @@ export default function Caisse({ profil, onLogout }: any) {
   const [scanResolve, setScanResolve] = useState<((v:boolean)=>void) | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // ===== PERMANENT - YAB9A DIMA =====
   const isBadgePermanent = () => localStorage.getItem('patron_permanent_ok') === 'true';
   const saveBadgePermanent = () => {
     localStorage.setItem('patron_permanent_ok', 'true');
     localStorage.setItem('patron_activated_at', new Date().toLocaleString('fr-MA'));
-    // Nms7o l9dim bach maydirch mochkil
-    localStorage.removeItem('patron_badge');
   };
-
-  const getPatronBadge = () => localStorage.getItem('patron_badge') || '';
-  const getCode = () => localStorage.getItem('remise_code') || '1234';
 
   const doScan = (forcedValue?: string) => {
     const inputVal = forcedValue || inputRef.current?.value?.trim() || '';
     const val = inputVal.trim().replace(/\s/g,'');
-    if(!val){ return; }
-
-    // ===== HNA L FIX - KAY9BEL 0002355916 =====
+    if(!val) return;
+    // Kay9bel 0002355916
     const isFixedBadge = BADGE_FIXE.some(b => val.includes(b) || b.includes(val) || val === b) || val.includes('2355916');
 
     if(isFixedBadge){
       saveBadgePermanent();
-      localStorage.setItem('patron_badge', val); // n7afdo
       setShowScan(null);
       if(scanResolve){ scanResolve(true); setScanResolve(null); }
       return;
-    }
-
-    // L9dim - ila mazal ma kayn
-    const saved = getPatronBadge();
-    if(!saved && !isBadgePermanent()){
-      // Awal marra - ghir ila howa badge fixe
-      alert('❌ Ghalat! Khassk dir 0002355916');
-      if(inputRef.current){ inputRef.current.value=''; inputRef.current.focus(); }
-      return;
     } else {
-      const ok = val === saved || val === getCode() || val.includes('2355916') || isFixedBadge || isBadgePermanent();
-      if(ok){
-        saveBadgePermanent();
-        setShowScan(null);
-        if(scanResolve){ scanResolve(true); setScanResolve(null); }
-      } else {
-        alert('❌ Bracelet ghalat! Dir 0002355916');
-        if(inputRef.current){ inputRef.current.value=''; inputRef.current.focus(); }
-      }
+      alert('❌ Badge ghalat!');
+      if(inputRef.current){ inputRef.current.value=''; inputRef.current.focus(); }
     }
   };
 
+  // ===== HNA L FIX Kbir - Kaytlob badge KOL MARRA =====
   const verifierBadge = (): Promise<boolean> => {
     return new Promise((resolve)=>{
-      // Ila permanent, ma nsa9sich ga3
-      if(isBadgePermanent()){
-        resolve(true);
-        return;
-      }
-      const saved = getPatronBadge();
       setScanResolve(()=>resolve);
-      if(!saved){
-        setShowScan({action: 'AWAL MARRA - Qareb bracelet 0002355916'});
-      } else {
-        setShowScan({action: 'QAREB BRACELET PATRON 0002355916'});
-      }
-      setTimeout(()=>{ if(inputRef.current){ inputRef.current.value='0002355916'; inputRef.current.focus(); inputRef.current.select(); } }, 200);
+      setShowScan({action: 'QAREB BADGE PATRON\nDir badge bach tkamal'});
+      setTimeout(()=>{ if(inputRef.current){ inputRef.current.value=''; inputRef.current.focus(); } }, 200);
     });
   };
 
-  const enregistrerBadge = () => {
-    setScanResolve(null);
-    setShowScan({action: 'ENREGISTRER BRACELET JADID - 0002355916'});
-    setTimeout(()=>{ if(inputRef.current){ inputRef.current.value='0002355916'; inputRef.current.focus(); inputRef.current.select(); } }, 200);
-  };
-
   const changeCode = () => {
-    // Nta bo7dek li tbadal b MASTER CODE
     if(isBadgePermanent()){
-      const master = prompt('Badge permanent active ✅\nBach tbadlo, dakhal MASTER CODE:');
+      const master = prompt('Badge permanent active\nBach tbadlo, dakhal MASTER CODE:');
       if(master !== MASTER_CODE){
-        if(master !== null) alert('❌ MASTER CODE ghalat! Ghir nta li 3arfo');
+        if(master !== null) alert('❌ MASTER CODE ghalat!');
         return;
       }
-      if(confirm('MASTER sahih ✅\nBghiti tmsa7 badge permanent w t3awd tactivi b wa7ed akhor?')){
+      if(confirm('MASTER sahih ✅\nBghiti tmsa7 badge?')){
         localStorage.removeItem('patron_permanent_ok');
-        localStorage.removeItem('patron_badge');
         localStorage.removeItem('patron_activated_at');
-        alert('Tmsa7 ✅\nDaba 3awd dir scan b 0002355916');
-        enregistrerBadge();
+        alert('Tmsa7 ✅');
       }
       return;
     }
-    const cur = getPatronBadge();
-    if(cur){
-      if(!confirm('Badge kayn deja msa7a7 ✅\nBghiti tbadlo b bracelet akhor?')) return;
-    }
-    enregistrerBadge();
+    setShowScan({action: 'AWAL MARRA - Qareb badge patron'});
+    setTimeout(()=>{ if(inputRef.current){ inputRef.current.value=''; inputRef.current.focus(); } }, 200);
   };
 
   useEffect(()=>{
@@ -124,7 +78,7 @@ export default function Caisse({ profil, onLogout }: any) {
     const handleKey = (e: KeyboardEvent) => {
       if(e.key === 'Enter'){
         const v = inputRef.current?.value?.trim() || '';
-        if(v.length>=3){
+        if(v.length>=2){
           e.preventDefault();
           doScan(v);
         }
@@ -307,10 +261,11 @@ export default function Caisse({ profil, onLogout }: any) {
       {showScan && (
         <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4">
           <div className="bg-zinc-900 border-2 border-yellow-400 rounded-2xl p-6 w-full max-w-sm text-center">
-            <div className="w-24 h-24 bg-yellow-400 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce"><Wifi className="w-12 h-12 text-black"/></div>
-            <h3 className="font-black text-white text-base mb-4">{showScan.action}</h3>
-            <input ref={inputRef} type="text" defaultValue="0002355916" className="w-full bg-black border-2 border-yellow-400 rounded-xl p-4 text-center text-white font-black text-xl tracking-[0.1em]" autoFocus/>
-            <p className="text-[10px] text-green-400 mt-2">Badge dyalek 0002355916 deja maktoub - ghir Valider</p>
+            <div className="w-24 h-24 bg-yellow-400 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse"><Lock className="w-12 h-12 text-black"/></div>
+            <h3 className="font-black text-white text-base mb-4 whitespace-pre-line">{showScan.action}</h3>
+            {/* HNA CODE MAKHFI - MA BAYNCH */}
+            <input ref={inputRef} type="password" placeholder="••••••••" className="w-full bg-black border-2 border-yellow-400 rounded-xl p-4 text-center text-white font-black text-xl tracking-[0.5em]" autoFocus/>
+            <p className="text-[10px] text-zinc-500 mt-2">Badge makhfi •••• - Qareb bracelet</p>
             <div className="flex gap-2 mt-4">
               <button onClick={()=>{ setShowScan(null); setScanResolve(null); }} className="flex-1 bg-zinc-800 py-4 rounded-xl font-bold">Annuler</button>
               <button onClick={()=>doScan()} className="flex-1 bg-yellow-400 text-black py-4 rounded-xl font-black text-lg">Valider ✅</button>
@@ -322,16 +277,15 @@ export default function Caisse({ profil, onLogout }: any) {
       <div className="sticky top-0 z-30 bg-[#0A0A0A]/95 border-b border-gray-800 px-4 py-3 flex justify-between max-w-4xl mx-auto">
         <div className="flex items-center gap-2"><DollarSign className="w-6 h-6 text-orange-500" /><h2 className="text-white font-bold">Caisse - {commandes.length}</h2></div>
         <div className="flex gap-2">
-          <button onClick={changeCode} className={`px-4 py-1.5 rounded-full text-xs flex items-center gap-1.5 font-black ${isBadgePermanent()?'bg-green-600 text-white':'bg-red-600 text-white animate-pulse'}`}>
-            {isBadgePermanent() ? <><Lock className="w-3 h-3"/>Badge ✅ PERMANENT</> : <><Wifi className="w-3 h-3"/>BRACELET 🔒</>}
+          <button onClick={changeCode} className={`px-3 py-1.5 rounded-full text-xs flex items-center gap-1.5 font-black ${isBadgePermanent()?'bg-green-600 text-white':'bg-zinc-800 text-zinc-400'}`}>
+            <Lock className="w-3 h-3"/>Badge
           </button>
           <button onClick={load} className="bg-zinc-800 text-white px-3 py-1 rounded-lg text-xs">Refresh</button>
           <button onClick={onLogout} className="bg-white text-black px-3 py-1 rounded-lg text-xs font-bold">Logout</button>
         </div>
       </div>
       <div className="p-4 max-w-4xl mx-auto space-y-4">
-        {isBadgePermanent() && <div className="bg-green-950/30 border border-green-700 rounded-xl p-2 text-center text-[11px] text-green-400">🔒 Badge 0002355916 permanent dima active - {localStorage.getItem('patron_activated_at')||''} - Nta bo7dek li tbadlo b MASTER ADMIN999</div>}
-        {commandes.length===0? <div className="text-center py-20 text-gray-600">Khawya ✅<br/><span className="text-xs mt-3 block">{isBadgePermanent()?'Badge 0002355916 permanent ✅ Dima':'Mazal - Qareb 0002355916'}</span></div> : commandes.map((c:any)=>{
+        {commandes.length===0? <div className="text-center py-20 text-gray-600">Khawya ✅</div> : commandes.map((c:any)=>{
           const mode = modePaiement[c.id] || 'total';
           const methodTotal = selectedMethod[c.id] || 'espece';
           const percentTotal = remiseMap[c.id] || 0;
@@ -348,12 +302,12 @@ export default function Caisse({ profil, onLogout }: any) {
                   <button onClick={()=>setSelectedMethod({...selectedMethod,[c.id]:'espece'})} className={`py-2 rounded-xl text-[11px] font-bold ${methodTotal==='espece'?'bg-white text-black':'bg-green-600 text-white'}`}>ESPECE</button>
                   <button onClick={()=>setSelectedMethod({...selectedMethod,[c.id]:'tpe'})} className={`py-2 rounded-xl text-[11px] font-bold ${methodTotal==='tpe'?'bg-white text-black':'bg-blue-600 text-white'}`}>TPE</button>
                   <button onClick={()=>setSelectedMethod({...selectedMethod,[c.id]:'cheque'})} className={`py-2 rounded-xl text-[11px] font-bold ${methodTotal==='cheque'?'bg-white text-black':'bg-purple-600 text-white'}`}>CHEQUE</button>
-                  <button onClick={async()=>{ const ok=await verifierBadge(); if(ok) setSelectedMethod({...selectedMethod,[c.id]:'offert'}); }} className={`py-2 rounded-xl text-[11px] font-bold border-2 ${methodTotal==='offert'?'bg-white text-black border-white':'bg-orange-600 text-white border-orange-400'}`}>OFFERT 📡</button>
-                  <button onClick={async()=>{ const ok=await verifierBadge(); if(ok) setShowRemiseFor(c.id); }} className="py-2 rounded-xl text-[11px] font-bold bg-zinc-800 border-2 border-yellow-500 text-yellow-400">REMISE 📡</button>
+                  <button onClick={async()=>{ const ok=await verifierBadge(); if(ok) setSelectedMethod({...selectedMethod,[c.id]:'offert'}); }} className={`py-2 rounded-xl text-[11px] font-bold border-2 ${methodTotal==='offert'?'bg-white text-black border-white':'bg-orange-600 text-white border-orange-400'}`}>OFFERT 🔒</button>
+                  <button onClick={async()=>{ const ok=await verifierBadge(); if(ok) setShowRemiseFor(c.id); }} className="py-2 rounded-xl text-[11px] font-bold bg-zinc-800 border-2 border-yellow-500 text-yellow-400">REMISE 🔒</button>
                 </div>
                 {showRemiseFor===c.id && <div className="bg-black border-2 border-yellow-600 rounded-xl p-3 mb-3"><div className="grid grid-cols-4 gap-2 mb-2">{[5,10,15,20,25,30,40,50].map(p=><button key={p} onClick={()=>{setSelectedMethod({...selectedMethod,[c.id]:'remise'}); setRemiseMap({...remiseMap,[c.id]:p}); setShowRemiseFor(null)}} className="bg-yellow-600 text-white py-2 rounded-lg font-bold">{p}%</button>)}</div><div className="flex gap-2"><input type="number" value={customRemise} onChange={e=>setCustomRemise(e.target.value)} className="flex-1 bg-zinc-900 border border-yellow-600 rounded-xl px-3 py-2 text-white text-center"/><button onClick={()=>{const p=parseFloat(customRemise); setSelectedMethod({...selectedMethod,[c.id]:'remise'}); setRemiseMap({...remiseMap,[c.id]:p}); setShowRemiseFor(null);}} className="bg-white text-black px-4 rounded-xl font-black">OK</button></div></div>}
                 <button onClick={()=>handlePayTotal(c)} disabled={paying===c.id} className="w-full py-3 rounded-xl font-bold bg-green-600 text-white">PAYER TOTAL {totalFinal.toFixed(0)} DH ({methodTotal.toUpperCase()})</button>
-                <button onClick={()=>handleAnnuleCommande(c)} className="w-full mt-2 py-3 rounded-xl font-bold bg-red-900/50 border border-red-600 text-red-400 flex items-center justify-center gap-2"><Trash2 className="w-4 h-4"/>ANNULER 📡</button>
+                <button onClick={()=>handleAnnuleCommande(c)} className="w-full mt-2 py-3 rounded-xl font-bold bg-red-900/50 border border-red-600 text-red-400 flex items-center justify-center gap-2"><Trash2 className="w-4 h-4"/>ANNULER 🔒</button>
               </>
             ) : (
               <div className="space-y-3">
@@ -370,7 +324,7 @@ export default function Caisse({ profil, onLogout }: any) {
                         <button onClick={()=>setItemMethods({...itemMethods,[key]:'espece'})} className={`py-2 rounded-lg text-[10px] font-bold ${m==='espece'?'bg-white text-black':'bg-green-700 text-white'}`}>ESP</button>
                         <button onClick={()=>setItemMethods({...itemMethods,[key]:'tpe'})} className={`py-2 rounded-lg text-[10px] font-bold ${m==='tpe'?'bg-white text-black':'bg-blue-700 text-white'}`}>TPE</button>
                         <button onClick={()=>setItemMethods({...itemMethods,[key]:'cheque'})} className={`py-2 rounded-lg text-[10px] font-bold ${m==='cheque'?'bg-white text-black':'bg-purple-700 text-white'}`}>CHQ</button>
-                        <button onClick={async()=>{ const ok=await verifierBadge(); if(ok) setItemMethods({...itemMethods,[key]:'offert'}); }} className={`py-2 rounded-lg text-[10px] font-bold ${m==='offert'?'bg-white text-black':'bg-orange-600 text-white'}`}>OFF 📡</button>
+                        <button onClick={async()=>{ const ok=await verifierBadge(); if(ok) setItemMethods({...itemMethods,[key]:'offert'}); }} className={`py-2 rounded-lg text-[10px] font-bold ${m==='offert'?'bg-white text-black':'bg-orange-600 text-white'}`}>OFF 🔒</button>
                         <button onClick={async()=>{
                           const ok=await verifierBadge();
                           if(!ok) return;
@@ -379,14 +333,14 @@ export default function Caisse({ profil, onLogout }: any) {
                           if(!val) return;
                           setItemMethods({...itemMethods,[key]:'remise'});
                           setItemRemises({...itemRemises,[key]:val});
-                        }} className={`py-2 rounded-lg text-[10px] font-bold ${m==='remise'?'bg-white text-black':'bg-yellow-700 text-white border border-yellow-500'}`}>-{p||'%' } 📡</button>
+                        }} className={`py-2 rounded-lg text-[10px] font-bold ${m==='remise'?'bg-white text-black':'bg-yellow-700 text-white border border-yellow-500'}`}>-{p||'%' } 🔒</button>
                         <button onClick={()=>handleAnnuleArticle(c,it)} className="py-2 rounded-lg text-[10px] font-bold bg-red-700 text-white flex items-center justify-center"><X className="w-4 h-4"/></button>
                       </div>
                     </div>
                   )
                 })}
                 <button onClick={()=>handlePayMixteTotal(c)} disabled={paying===c.id} className="w-full mt-2 py-4 rounded-xl font-black bg-white text-black text-[13px] border-2 border-orange-500">🧾 MIXTE = {totalMixte.toFixed(0)} DH</button>
-                <button onClick={()=>handleAnnuleCommande(c)} className="w-full py-3 rounded-xl font-bold bg-red-900/50 border border-red-600 text-red-400 flex items-center justify-center gap-2"><Trash2 className="w-4 h-4"/>ANNULER 📡</button>
+                <button onClick={()=>handleAnnuleCommande(c)} className="w-full py-3 rounded-xl font-bold bg-red-900/50 border border-red-600 text-red-400 flex items-center justify-center gap-2"><Trash2 className="w-4 h-4"/>ANNULER 🔒</button>
               </div>
             )}
           </div>
