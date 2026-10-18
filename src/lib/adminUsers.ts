@@ -1,227 +1,197 @@
 // @ts-nocheck
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { adminUsers } from '@/lib/adminUsers';
-import { Users, Plus, Trash2, Edit, Radio, BarChart3, ChefHat, DollarSign, Crown, Lock } from 'lucide-react';
-import PatronLive from './PatronLive';
-import StatsCommandes from './StatsCommandes';
+import { ArrowLeft, ShoppingCart, Plus, Minus, ChefHat, Search } from 'lucide-react';
+import { printFromTPEToKitchen } from '@/utils/tpePrint';
 
-export default function Admin() {
-  const [users, setUsers] = useState<any[]>([]);
+export default function Serveur({ user }: any) {
+  const [produits, setProduits] = useState<any[]>([]);
+  const [selectedCategorie, setSelectedCategorie] = useState<string | null>(null);
+  const [cart, setCart] = useState<any[]>([]);
+  const [table, setTable] = useState('');
   const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
-  const [showLive, setShowLive] = useState(false);
-  const [editing, setEditing] = useState<any>(null);
-  
-  const [form, setForm] = useState({
-    nom: '',
-    identifiant: '',
-    code: '',
-    role: 'serveur',
-    actif: true
-  });
+  const [search, setSearch] = useState('');
 
-  const loadUsers = async () => {
-    setLoading(true);
-    const { data } = await supabase.from('utilisateurs').select('*').order('created_at', { ascending: false });
-    if(data) setUsers(data);
-    setLoading(false);
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from('produits').select('*').eq('disponible', true).order('nom');
+      if(data) setProduits(data);
+      setLoading(false);
+    })();
+  }, []);
+
+  // Jib categories men produits
+  const categories = useMemo(() => {
+    const cats = [...new Set(produits.map(p => p.categorie || p.category || 'Autre'))];
+    return cats.filter(Boolean).sort();
+  }, [produits]);
+
+  const filteredProduits = useMemo(() => {
+    let list = produits;
+    if(selectedCategorie){
+      list = list.filter(p => (p.categorie || p.category || 'Autre') === selectedCategorie);
+    }
+    if(search){
+      list = list.filter(p => p.nom.toLowerCase().includes(search.toLowerCase()));
+    }
+    return list;
+  }, [produits, selectedCategorie, search]);
+
+  const addToCart = (p: any) => {
+    const existing = cart.find(c => c.id === p.id);
+    if(existing){
+      setCart(cart.map(c => c.id === p.id ? {...c, qte: c.qte+1} : c));
+    } else {
+      setCart([...cart, {...p, qte: 1, note: ''}]);
+    }
   };
 
-  useEffect(() => { loadUsers(); }, []);
+  const updateQte = (id: string, delta: number) => {
+    const item = cart.find(c => c.id === id);
+    if(!item) return;
+    const newQte = item.qte + delta;
+    if(newQte <= 0) setCart(cart.filter(c => c.id !== id));
+    else setCart(cart.map(c => c.id === id ? {...c, qte: newQte} : c));
+  };
 
-  const handleCreate = async () => {
-    if(!form.nom || !form.identifiant || !form.code){
-      alert('3amar ga3 les champs!');
+  const envoyer = async () => {
+    if(!table || cart.length === 0){
+      alert('Khtar table w zid repas!');
       return;
     }
-    const err = await adminUsers({
-      action: 'create',
-      nom: form.nom,
-      identifiant: form.identifiant,
-      code: form.code,
-      role: form.role,
-      actif: form.actif
-    });
-    if(err){
-      alert('Erreur: '+err);
+    const commande = {
+      id_table: table,
+      table: table,
+      serveur_id: user?.id,
+      serveur: user?.identifiant || 's1',
+      serveur_nom: user?.nom || 'Serveur',
+      produits: cart,
+      items: cart,
+      statut: 'en_cuisine',
+      total: cart.reduce((a,b)=>a+(b.prix*b.qte),0),
+      created_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase.from('commandes').insert([commande]).select();
+    if(error){
+      alert('Erreur: '+error.message);
     } else {
-      alert('✅ Utilisateur tzad!');
-      setShowCreate(false);
-      setForm({ nom: '', identifiant: '', code: '', role: 'serveur', actif: true });
-      loadUsers();
+      // TPE → Imprimante Cuisine direct
+      try{ printFromTPEToKitchen(data?.[0] || commande); }catch{}
+      alert(`✅ Commande sayfat! Table ${table} → Cuisine`);
+      setCart([]);
+      setSelectedCategorie(null);
     }
   };
 
-  const handleUpdate = async () => {
-    if(!editing) return;
-    const err = await adminUsers({
-      action: 'update',
-      id: editing.id,
-      nom: editing.nom,
-      role: editing.role,
-      actif: editing.actif,
-      code: editing.code_acces
-    });
-    if(err) alert(err);
-    else {
-      alert('✅ Tbadal!');
-      setEditing(null);
-      loadUsers();
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if(!confirm('Bghiti tmsa7 had user?')) return;
-    const err = await adminUsers({ action: 'delete', id });
-    if(err) alert(err);
-    else loadUsers();
-  };
-
-  if(showLive){
-    return (
-      <div className="min-h-screen bg-black">
-        <div className="bg-red-600 text-white p-3 flex justify-between items-center sticky top-0 z-50">
-          <span className="font-black text-sm">🔴 LIVE PATRON MODE</span>
-          <button onClick={()=>setShowLive(false)} className="bg-black px-4 py-1 rounded-full text-xs font-bold">Kharaj ✕</button>
-        </div>
-        <PatronLive />
-      </div>
-    );
-  }
+  if(loading) return <div className="min-h-screen bg-black flex items-center justify-center text-zinc-600">Kaytchargi menu...</div>;
 
   return (
-    <div className="min-h-screen bg-black text-white p-3 pb-24">
+    <div className="min-h-screen bg-black text-white flex flex-col">
       {/* HEADER */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-4">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="font-black text-lg flex items-center gap-2"><Crown className="w-5 h-5 text-yellow-400" /> ADMIN MARSILIA</h1>
-            <p className="text-[10px] text-zinc-500 mt-1">{users.length} utilisateurs • Badge: •••••••• makhfi</p>
+      <div className="bg-zinc-900 border-b border-zinc-800 p-3 flex items-center gap-3 sticky top-0 z-20">
+        {selectedCategorie ? (
+          <button onClick={()=>setSelectedCategorie(null)} className="bg-zinc-800 p-2.5 rounded-full">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+        ) : null}
+        <div className="flex-1">
+          <h1 className="font-black text-sm">
+            {selectedCategorie ? selectedCategorie.toUpperCase() : 'MENU - CATEGORIES'}
+          </h1>
+          <p className="text-[10px] text-zinc-500">
+            {selectedCategorie ? `${filteredProduits.length} repas` : `${categories.length} categories • ${produits.length} repas`}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <input value={table} onChange={e=>setTable(e.target.value)} placeholder="Table" className="w-16 bg-black border border-zinc-700 rounded-full px-3 py-2 text-center font-black text-sm" />
+          <div className="bg-yellow-500 text-black px-3 py-2 rounded-full font-black text-xs flex items-center gap-1">
+            <ShoppingCart className="w-4 h-4" /> {cart.reduce((a,b)=>a+b.qte,0)}
           </div>
-          <button onClick={()=>setShowCreate(true)} className="bg-yellow-500 text-black px-4 py-2 rounded-full font-black text-xs flex items-center gap-1">
-            <Plus className="w-4 h-4" /> Zid User
+        </div>
+      </div>
+
+      {/* SEARCH */}
+      <div className="p-3">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-full px-4 py-2.5 flex items-center gap-2">
+          <Search className="w-4 h-4 text-zinc-500" />
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={selectedCategorie ? `Qalleb f ${selectedCategorie}...` : 'Qalleb f ga3 menu...'} className="flex-1 bg-transparent outline-none text-sm" />
+        </div>
+      </div>
+
+      {/* LAWAL: CATEGORIES */}
+      {!selectedCategorie ? (
+        <div className="flex-1 p-3 grid grid-cols-2 gap-3 content-start">
+          {categories.map((cat) => {
+            const count = produits.filter(p => (p.categorie||'Autre')===cat).length;
+            return (
+              <button
+                key={cat}
+                onClick={()=>setSelectedCategorie(cat)}
+                className="bg-zinc-900 hover:bg-zinc-800 border-2 border-zinc-800 hover:border-yellow-500 rounded-2xl p-5 text-left transition-all active:scale-95 group"
+              >
+                <div className="w-12 h-12 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition">
+                  <ChefHat className="w-7 h-7 text-black" />
+                </div>
+                <div className="font-black text-sm uppercase">{cat}</div>
+                <div className="text-[11px] text-zinc-500 mt-1">{count} repas →</div>
+              </button>
+            );
+          })}
+          {categories.length===0 && <div className="col-span-2 text-center py-10 text-zinc-600">Ma kayn 7ta categorie</div>}
+        </div>
+      ) : (
+        /* MAN BA3D: LES REPAS DYAL CATEGORIE */
+        <div className="flex-1 p-3 grid grid-cols-2 gap-2.5 content-start pb-32">
+          {filteredProduits.map((p) => (
+            <div key={p.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 flex flex-col">
+              {p.image && <img src={p.image} alt={p.nom} className="w-full h-24 object-cover rounded-xl mb-2" />}
+              <div className="flex-1">
+                <div className="font-bold text-[13px] leading-tight">{p.nom}</div>
+                <div className="text-[11px] text-zinc-500 mt-0.5 line-clamp-2">{p.description || ''}</div>
+              </div>
+              <div className="flex justify-between items-center mt-3">
+                <span className="font-black text-yellow-400 text-sm">{p.prix} DH</span>
+                <button onClick={()=>addToCart(p)} className="bg-white text-black px-3.5 py-1.5 rounded-full font-black text-xs flex items-center gap-1 active:scale-90">
+                  <Plus className="w-3 h-3" /> Zid
+                </button>
+              </div>
+            </div>
+          ))}
+          {filteredProduits.length===0 && (
+            <div className="col-span-2 text-center py-10 text-zinc-600">
+              Ma kayn 7ta repas f {selectedCategorie}
+              <br/>
+              <button onClick={()=>setSelectedCategorie(null)} className="mt-3 bg-zinc-800 px-4 py-2 rounded-full text-xs">Rje3 l categories</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* PANIER FIXED */}
+      {cart.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-zinc-900 border-t-2 border-yellow-500 p-3 z-30 max-h-[45vh] overflow-y-auto">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="font-black text-xs">Table {table || '?'} • {cart.length} articles</h3>
+            <span className="font-black text-yellow-400">{cart.reduce((a,b)=>a+(b.prix*b.qte),0)} DH</span>
+          </div>
+          <div className="space-y-2 mb-3 max-h-32 overflow-y-auto">
+            {cart.map((c) => (
+              <div key={c.id} className="flex justify-between items-center bg-black rounded-full px-3 py-1.5">
+                <span className="text-xs flex-1 truncate">{c.nom}</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={()=>updateQte(c.id,-1)} className="bg-zinc-800 w-6 h-6 rounded-full flex items-center justify-center"><Minus className="w-3 h-3" /></button>
+                  <span className="font-black text-xs w-5 text-center">{c.qte}</span>
+                  <button onClick={()=>updateQte(c.id,1)} className="bg-zinc-800 w-6 h-6 rounded-full flex items-center justify-center"><Plus className="w-3 h-3" /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button onClick={envoyer} className="w-full bg-yellow-500 text-black py-3.5 rounded-full font-black text-sm flex items-center justify-center gap-2 active:scale-95">
+            <ChefHat className="w-5 h-5" /> SAYFAT L CUISINE → {table || 'TABLE'}
           </button>
         </div>
-      </div>
-
-      {/* STATS RAPIDE */}
-      <div className="grid grid-cols-4 gap-2 mb-4">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-2 text-center">
-          <div className="text-[9px] text-zinc-500">TOTAL</div>
-          <div className="font-black text-lg">{users.length}</div>
-        </div>
-        <div className="bg-blue-900/20 border border-blue-800 rounded-xl p-2 text-center">
-          <div className="text-[9px] text-blue-400">SERVEUR</div>
-          <div className="font-black text-lg text-blue-400">{users.filter(u=>u.role==='serveur').length}</div>
-        </div>
-        <div className="bg-orange-900/20 border border-orange-800 rounded-xl p-2 text-center">
-          <div className="text-[9px] text-orange-400">CUISINE</div>
-          <div className="font-black text-lg text-orange-400">{users.filter(u=>u.role==='cuisine').length}</div>
-        </div>
-        <div className="bg-green-900/20 border border-green-800 rounded-xl p-2 text-center">
-          <div className="text-[9px] text-green-400">CAISSE</div>
-          <div className="font-black text-lg text-green-400">{users.filter(u=>u.role==='caisse').length}</div>
-        </div>
-      </div>
-
-      {/* LISTE USERS */}
-      <div className="space-y-2">
-        {loading ? (
-          <div className="text-center py-10 text-zinc-600">Kaytchargi...</div>
-        ) : users.map((u) => (
-          <div key={u.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-xs ${
-                u.role==='admin'?'bg-red-600': u.role==='caisse'?'bg-green-600': u.role==='cuisine'?'bg-orange-600':'bg-blue-600'
-              }`}>
-                {u.identifiant?.slice(0,2).toUpperCase()}
-              </div>
-              <div>
-                <div className="font-bold text-sm flex items-center gap-2">
-                  {u.nom}
-                  {!u.actif && <span className="bg-red-600 text-[8px] px-1.5 py-0.5 rounded-full">OFF</span>}
-                </div>
-                <div className="text-[11px] text-zinc-400">
-                  {u.identifiant} • {u.role} • ••••••••
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-1">
-              <button onClick={()=>setEditing(u)} className="bg-zinc-800 p-2 rounded-full">
-                <Edit className="w-4 h-4" />
-              </button>
-              <button onClick={()=>handleDelete(u.id)} className="bg-red-600/20 border border-red-600 p-2 rounded-full">
-                <Trash2 className="w-4 h-4 text-red-400" />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* CREATE MODAL */}
-      {showCreate && (
-        <div className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border-2 border-yellow-500 rounded-2xl p-5 w-full max-w-sm">
-            <h3 className="font-black mb-4">Zid Utilisateur Jdid</h3>
-            <div className="space-y-3">
-              <input value={form.nom} onChange={e=>setForm({...form, nom: e.target.value})} placeholder="Smit (ex: Said Cuisine)" className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-sm" />
-              <input value={form.identifiant} onChange={e=>setForm({...form, identifiant: e.target.value.toLowerCase()})} placeholder="Identifiant (ex: said, s1, c1)" className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-sm" />
-              <input value={form.code} onChange={e=>setForm({...form, code: e.target.value})} type="password" placeholder="Code ••••••••" className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-sm tracking-widest" />
-              <select value={form.role} onChange={e=>setForm({...form, role: e.target.value})} className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-sm">
-                <option value="serveur">Serveur (s1, s2... / TPE)</option>
-                <option value="cuisine">Cuisine (said)</option>
-                <option value="caisse">Caisse (c1)</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            <div className="flex gap-2 mt-5">
-              <button onClick={()=>setShowCreate(false)} className="flex-1 bg-zinc-800 py-3 rounded-xl font-bold text-sm">Annuler</button>
-              <button onClick={handleCreate} className="flex-1 bg-yellow-500 text-black py-3 rounded-xl font-black text-sm">Zid ✅</button>
-            </div>
-          </div>
-        </div>
       )}
-
-      {/* EDIT MODAL */}
-      {editing && (
-        <div className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border-2 border-blue-500 rounded-2xl p-5 w-full max-w-sm">
-            <h3 className="font-black mb-4">Badal {editing.identifiant}</h3>
-            <div className="space-y-3">
-              <input value={editing.nom} onChange={e=>setEditing({...editing, nom: e.target.value})} className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-sm" />
-              <select value={editing.role} onChange={e=>setEditing({...editing, role: e.target.value})} className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-sm">
-                <option value="serveur">Serveur</option>
-                <option value="cuisine">Cuisine</option>
-                <option value="caisse">Caisse</option>
-                <option value="admin">Admin</option>
-              </select>
-              <input value={editing.code_acces} onChange={e=>setEditing({...editing, code_acces: e.target.value})} type="password" placeholder="Code jdid ••••••••" className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-sm tracking-widest" />
-              <label className="flex items-center gap-2 text-xs">
-                <input type="checkbox" checked={editing.actif} onChange={e=>setEditing({...editing, actif: e.target.checked})} /> Actif
-              </label>
-            </div>
-            <div className="flex gap-2 mt-5">
-              <button onClick={()=>setEditing(null)} className="flex-1 bg-zinc-800 py-3 rounded-xl font-bold text-sm">Annuler</button>
-              <button onClick={handleUpdate} className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-black text-sm">Save ✅</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* BOUTONS FIXED */}
-      <StatsCommandes />
-      
-      <button
-        onClick={()=>setShowLive(true)}
-        className="fixed bottom-4 left-4 z-50 bg-red-600 hover:bg-red-700 text-white px-5 py-3 rounded-full font-black text-xs shadow-2xl flex items-center gap-2 animate-pulse border-2 border-white"
-      >
-        <Radio className="w-4 h-4" /> LIVE PATRON 🔴
-      </button>
-
-      <div className="fixed bottom-4 right-20 z-40 bg-zinc-900 border border-zinc-700 px-3 py-2 rounded-full text-[9px] text-zinc-500">
-        Badge makhfi ••••••••
-      </div>
     </div>
   );
 }
