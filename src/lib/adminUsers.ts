@@ -1,171 +1,226 @@
 // @ts-nocheck
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { ArrowLeft, Plus, Edit, Trash2, Search } from 'lucide-react';
+import { adminUsers } from '@/lib/adminUsers';
+import { Users, Plus, Trash2, Edit, Radio, BarChart3, ChefHat, DollarSign, Crown, Lock } from 'lucide-react';
+import PatronLive from './PatronLive';
+import StatsCommandes from './StatsCommandes';
 
-export default function Admin({ activeTabProp }: any) {
-  const [produits, setProduits] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [selectedCategorie, setSelectedCategorie] = useState<string | null>(null);
+export default function Admin() {
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [showCreate, setShowCreate] = useState(false);
+  const [showLive, setShowLive] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+  
+  const [form, setForm] = useState({
+    nom: '',
+    identifiant: '',
+    code: '',
+    role: 'serveur',
+    actif: true
+  });
 
-  useEffect(() => {
-    (async () => {
-      // Jib ga3 produits
-      const { data: produitsData } = await supabase.from('produits').select('*').order('created_at', { ascending: false });
-      if(produitsData) setProduits(produitsData);
+  const loadUsers = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('utilisateurs').select('*').order('created_at', { ascending: false });
+    if(data) setUsers(data);
+    setLoading(false);
+  };
 
-      // Jib categories - ila kayn table categories
-      const { data: catsData } = await supabase.from('categories').select('*').order('nom');
-      if(catsData && catsData.length > 0){
-        setCategories(catsData);
-      } else {
-        // Ila ma kaynch table categories, jib men produits
-        const uniq = [...new Set((produitsData||[]).map(p => p.categorie || p.category || p.type || 'Autre'))];
-        setCategories(uniq.map(name => ({ id: name, nom: name, name: name, slug: name })));
-      }
-      setLoading(false);
-    })();
-  }, []);
+  useEffect(() => { loadUsers(); }, []);
 
-  // Plats dyal categorie li mkhtara
-  const platsFiltres = useMemo(() => {
-    let list = produits;
-    if(selectedCategorie){
-      list = list.filter(p => {
-        const cat = p.categorie || p.category || p.type || 'Autre';
-        return cat === selectedCategorie || p.categorie_id === selectedCategorie || p.category_id === selectedCategorie;
-      });
+  const handleCreate = async () => {
+    if(!form.nom || !form.identifiant || !form.code){
+      alert('3amar ga3 les champs!');
+      return;
     }
-    if(search){
-      list = list.filter(p => p.nom.toLowerCase().includes(search.toLowerCase()));
+    const err = await adminUsers({
+      action: 'create',
+      nom: form.nom,
+      identifiant: form.identifiant,
+      code: form.code,
+      role: form.role,
+      actif: form.actif
+    });
+    if(err){
+      alert('Erreur: '+err);
+    } else {
+      alert('✅ Utilisateur tzad!');
+      setShowCreate(false);
+      setForm({ nom: '', identifiant: '', code: '', role: 'serveur', actif: true });
+      loadUsers();
     }
-    return list;
-  }, [produits, selectedCategorie, search]);
+  };
 
-  if(loading) return <div className="min-h-screen bg-black text-zinc-600 flex items-center justify-center">Kaytchargi Menu 99...</div>;
+  const handleUpdate = async () => {
+    if(!editing) return;
+    const err = await adminUsers({
+      action: 'update',
+      id: editing.id,
+      nom: editing.nom,
+      role: editing.role,
+      actif: editing.actif,
+      code: editing.code_acces
+    });
+    if(err) alert(err);
+    else {
+      alert('✅ Tbadal!');
+      setEditing(null);
+      loadUsers();
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if(!confirm('Bghiti tmsa7 had user?')) return;
+    const err = await adminUsers({ action: 'delete', id });
+    if(err) alert(err);
+    else loadUsers();
+  };
+
+  if(showLive){
+    return (
+      <div className="min-h-screen bg-black">
+        <div className="bg-red-600 text-white p-3 flex justify-between items-center sticky top-0 z-50">
+          <span className="font-black text-sm">🔴 LIVE PATRON MODE</span>
+          <button onClick={()=>setShowLive(false)} className="bg-black px-4 py-1 rounded-full text-xs font-bold">Kharaj ✕</button>
+        </div>
+        <PatronLive />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      {/* TABS BHAL TSAWIRA */}
-      <div className="bg-black border-b border-zinc-900 p-2 flex gap-2 overflow-x-auto sticky top-0 z-20">
-        <button className="bg-orange-600 text-white px-4 py-1.5 rounded-full text-[11px] font-black">MENU</button>
-        <button className="bg-zinc-800 text-zinc-400 px-4 py-1.5 rounded-full text-[11px] font-bold">GESTION STOCK</button>
-        <button className="bg-zinc-800 text-zinc-400 px-4 py-1.5 rounded-full text-[11px] font-bold">CATEGORIES</button>
-        <button className="bg-zinc-800 text-zinc-400 px-4 py-1.5 rounded-full text-[11px] font-bold">TABLES</button>
-        <button className="bg-zinc-800 text-zinc-400 px-4 py-1.5 rounded-full text-[11px] font-bold">USERS</button>
-        <button className="bg-zinc-800 text-zinc-400 px-4 py-1.5 rounded-full text-[11px] font-bold">RAPPORTS</button>
-      </div>
-
-      <div className="max-w-[1100px] mx-auto p-4">
-        {/* HEADER */}
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-3">
-            {selectedCategorie && (
-              <button onClick={()=>setSelectedCategorie(null)} className="bg-zinc-800 p-2 rounded-full hover:bg-zinc-700">
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-            )}
-            <h2 className="font-bold text-[15px]">
-              {selectedCategorie ? `${selectedCategorie} - ${platsFiltres.length} plats` : 'Menu 99 - Normal + Glovo'}
-            </h2>
+    <div className="min-h-screen bg-black text-white p-3 pb-24">
+      {/* HEADER */}
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-4">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="font-black text-lg flex items-center gap-2"><Crown className="w-5 h-5 text-yellow-400" /> ADMIN MARSILIA</h1>
+            <p className="text-[10px] text-zinc-500 mt-1">{users.length} utilisateurs • Badge: •••••••• makhfi</p>
           </div>
-          <button className="bg-orange-600 hover:bg-orange-700 px-4 py-2 rounded-full text-xs font-black flex items-center gap-1">
-            + Plat
+          <button onClick={()=>setShowCreate(true)} className="bg-yellow-500 text-black px-4 py-2 rounded-full font-black text-xs flex items-center gap-1">
+            <Plus className="w-4 h-4" /> Zid User
           </button>
         </div>
+      </div>
 
-        {/* SEARCH ILA DAKHAL CATEGORIE */}
-        {selectedCategorie && (
-          <div className="mb-4 bg-zinc-900 border border-zinc-800 rounded-full px-4 py-2 flex items-center gap-2">
-            <Search className="w-4 h-4 text-zinc-500" />
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={`Qalleb f ${selectedCategorie}...`} className="flex-1 bg-transparent outline-none text-sm" />
-          </div>
-        )}
+      {/* STATS RAPIDE */}
+      <div className="grid grid-cols-4 gap-2 mb-4">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-2 text-center">
+          <div className="text-[9px] text-zinc-500">TOTAL</div>
+          <div className="font-black text-lg">{users.length}</div>
+        </div>
+        <div className="bg-blue-900/20 border border-blue-800 rounded-xl p-2 text-center">
+          <div className="text-[9px] text-blue-400">SERVEUR</div>
+          <div className="font-black text-lg text-blue-400">{users.filter(u=>u.role==='serveur').length}</div>
+        </div>
+        <div className="bg-orange-900/20 border border-orange-800 rounded-xl p-2 text-center">
+          <div className="text-[9px] text-orange-400">CUISINE</div>
+          <div className="font-black text-lg text-orange-400">{users.filter(u=>u.role==='cuisine').length}</div>
+        </div>
+        <div className="bg-green-900/20 border border-green-800 rounded-xl p-2 text-center">
+          <div className="text-[9px] text-green-400">CAISSE</div>
+          <div className="font-black text-lg text-green-400">{users.filter(u=>u.role==='caisse').length}</div>
+        </div>
+      </div>
 
-        {/* 1- LAWAL: CATEGORIES */}
-        {!selectedCategorie ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {categories.map((cat) => {
-              const catName = cat.nom || cat.name || cat.id;
-              const count = produits.filter(p => (p.categorie || p.category || 'Autre') === catName).length;
-              const coverPlat = produits.find(p => (p.categorie || 'Autre') === catName);
-
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategorie(catName)}
-                  className="bg-[#121212] border border-zinc-800 hover:border-orange-500 rounded-xl overflow-hidden text-left group"
-                >
-                  <div className="h-[180px] bg-zinc-900 overflow-hidden relative">
-                    {coverPlat?.image ? (
-                      <img src={coverPlat.image} alt={catName} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-zinc-600">
-                        <span className="text-xs">Sans photo</span>
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-                    <div className="absolute bottom-3 left-3 right-3">
-                      <div className="font-black text-[16px] uppercase">{catName}</div>
-                      <div className="text-[11px] text-zinc-300">{count} plats →</div>
-                    </div>
-                  </div>
-                  <div className="p-3 bg-[#1a1a1a] flex justify-between items-center">
-                    <span className="text-[11px] text-zinc-500">{count} ingrédients • {cat.slug || catName.toLowerCase()}</span>
-                    <span className="text-orange-500 text-xs font-black">Voir →</span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          /* 2- MAN BA3D: LES REPAS DYAL CATEGORIE BHAL TSAWIRA */
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {platsFiltres.map((plat) => (
-              <div key={plat.id} className="bg-[#121212] border border-zinc-800 rounded-xl overflow-hidden group hover:border-zinc-700 transition">
-                {/* SORA */}
-                <div className="h-[200px] bg-zinc-800 relative overflow-hidden">
-                  {plat.image ? (
-                    <img src={plat.image} alt={plat.nom} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-[#2a2a2a]">
-                      <span className="text-zinc-500 text-xs">Sans photo</span>
-                    </div>
-                  )}
+      {/* LISTE USERS */}
+      <div className="space-y-2">
+        {loading ? (
+          <div className="text-center py-10 text-zinc-600">Kaytchargi...</div>
+        ) : users.map((u) => (
+          <div key={u.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-xs ${
+                u.role==='admin'?'bg-red-600': u.role==='caisse'?'bg-green-600': u.role==='cuisine'?'bg-orange-600':'bg-blue-600'
+              }`}>
+                {u.identifiant?.slice(0,2).toUpperCase()}
+              </div>
+              <div>
+                <div className="font-bold text-sm flex items-center gap-2">
+                  {u.nom}
+                  {!u.actif && <span className="bg-red-600 text-[8px] px-1.5 py-0.5 rounded-full">OFF</span>}
                 </div>
-                {/* INFO BHAL TSAWIRA */}
-                <div className="p-3 bg-[#1e1e1e] flex justify-between items-center">
-                  <div className="flex-1">
-                    <div className="font-bold text-[14px]">{plat.nom || plat.name}</div>
-                    <div className="text-[11px] text-zinc-400 mt-1">
-                      {plat.prix || plat.prix_normal || 60} DH Normal <span className="mx-1">|</span> {plat.prix_glovo || 70} DH Glovo 💰
-                    </div>
-                    <div className="text-[9px] text-zinc-600 mt-1">
-                      {plat.ingredients?.length || 1} ingrédients • {plat.categorie || 'poulet_grillé'}
-                    </div>
-                  </div>
-                  <div className="flex gap-2 ml-3">
-                    <button className="bg-[#2a2a2a] hover:bg-zinc-700 w-9 h-9 rounded-lg flex items-center justify-center">
-                      <Edit className="w-4 h-4 text-zinc-400" />
-                    </button>
-                    <button className="bg-red-900/80 hover:bg-red-800 w-9 h-9 rounded-lg flex items-center justify-center">
-                      <Trash2 className="w-4 h-4 text-red-300" />
-                    </button>
-                  </div>
+                <div className="text-[11px] text-zinc-400">
+                  {u.identifiant} • {u.role} • ••••••••
                 </div>
               </div>
-            ))}
-
-            {platsFiltres.length === 0 && (
-              <div className="col-span-2 text-center py-16 bg-zinc-900/50 rounded-xl border border-dashed border-zinc-800">
-                <div className="text-zinc-500 text-sm mb-3">Ma kayn 7ta plat f {selectedCategorie}</div>
-                <button className="bg-orange-600 px-5 py-2 rounded-full text-xs font-bold">+ Zid Plat f {selectedCategorie}</button>
-              </div>
-            )}
+            </div>
+            <div className="flex gap-1">
+              <button onClick={()=>setEditing(u)} className="bg-zinc-800 p-2 rounded-full">
+                <Edit className="w-4 h-4" />
+              </button>
+              <button onClick={()=>handleDelete(u.id)} className="bg-red-600/20 border border-red-600 p-2 rounded-full">
+                <Trash2 className="w-4 h-4 text-red-400" />
+              </button>
+            </div>
           </div>
-        )}
+        ))}
+      </div>
+
+      {/* CREATE MODAL */}
+      {showCreate && (
+        <div className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border-2 border-yellow-500 rounded-2xl p-5 w-full max-w-sm">
+            <h3 className="font-black mb-4">Zid Utilisateur Jdid</h3>
+            <div className="space-y-3">
+              <input value={form.nom} onChange={e=>setForm({...form, nom: e.target.value})} placeholder="Smit (ex: Said Cuisine)" className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-sm" />
+              <input value={form.identifiant} onChange={e=>setForm({...form, identifiant: e.target.value.toLowerCase()})} placeholder="Identifiant (ex: said, s1, c1)" className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-sm" />
+              <input value={form.code} onChange={e=>setForm({...form, code: e.target.value})} type="password" placeholder="Code ••••••••" className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-sm tracking-widest" />
+              <select value={form.role} onChange={e=>setForm({...form, role: e.target.value})} className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-sm">
+                <option value="serveur">Serveur (s1, s2... / TPE)</option>
+                <option value="cuisine">Cuisine (said)</option>
+                <option value="caisse">Caisse (c1)</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button onClick={()=>setShowCreate(false)} className="flex-1 bg-zinc-800 py-3 rounded-xl font-bold text-sm">Annuler</button>
+              <button onClick={handleCreate} className="flex-1 bg-yellow-500 text-black py-3 rounded-xl font-black text-sm">Zid ✅</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT MODAL */}
+      {editing && (
+        <div className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border-2 border-blue-500 rounded-2xl p-5 w-full max-w-sm">
+            <h3 className="font-black mb-4">Badal {editing.identifiant}</h3>
+            <div className="space-y-3">
+              <input value={editing.nom} onChange={e=>setEditing({...editing, nom: e.target.value})} className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-sm" />
+              <select value={editing.role} onChange={e=>setEditing({...editing, role: e.target.value})} className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-sm">
+                <option value="serveur">Serveur</option>
+                <option value="cuisine">Cuisine</option>
+                <option value="caisse">Caisse</option>
+                <option value="admin">Admin</option>
+              </select>
+              <input value={editing.code_acces} onChange={e=>setEditing({...editing, code_acces: e.target.value})} type="password" placeholder="Code jdid ••••••••" className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-sm tracking-widest" />
+              <label className="flex items-center gap-2 text-xs">
+                <input type="checkbox" checked={editing.actif} onChange={e=>setEditing({...editing, actif: e.target.checked})} /> Actif
+              </label>
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button onClick={()=>setEditing(null)} className="flex-1 bg-zinc-800 py-3 rounded-xl font-bold text-sm">Annuler</button>
+              <button onClick={handleUpdate} className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-black text-sm">Save ✅</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BOUTONS FIXED */}
+      <StatsCommandes />
+      
+      <button
+        onClick={()=>setShowLive(true)}
+        className="fixed bottom-4 left-4 z-50 bg-red-600 hover:bg-red-700 text-white px-5 py-3 rounded-full font-black text-xs shadow-2xl flex items-center gap-2 animate-pulse border-2 border-white"
+      >
+        <Radio className="w-4 h-4" /> LIVE PATRON 🔴
+      </button>
+
+      <div className="fixed bottom-4 right-20 z-40 bg-zinc-900 border border-zinc-700 px-3 py-2 rounded-full text-[9px] text-zinc-500">
+        Badge makhfi ••••••••
       </div>
     </div>
   );
