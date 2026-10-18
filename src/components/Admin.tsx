@@ -1,22 +1,294 @@
 // @ts-nocheck
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Edit3, Trash2, X, Image as ImageIcon, Upload, BarChart3, Users, MapPin, Clock, Utensils, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Edit3, Trash2, X, Image as ImageIcon, Upload, BarChart3, Users, MapPin, Clock, Utensils, AlertTriangle, Package, Plus, Minus, History } from 'lucide-react';
 
 export default function Admin(){
-  const [tab,setTab]=useState('rapports');
+  const [tab,setTab]=useState('gestion-stock');
   return(
     <div className="min-h-screen bg-black text-white pb-20">
       <div className="flex gap-1 p-2 border-b border-zinc-800 sticky top-0 bg-black z-20 overflow-x-auto">
-        {['menu','matiere','stock','categories','tables','users','rapports'].map((t)=><button key={t} onClick={()=>setTab(t)} className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${tab===t?'bg-orange-600':'bg-zinc-800'}`}>{t.toUpperCase()}</button>)}
+        {[
+          {id:'menu',label:'MENU'},
+          {id:'gestion-stock',label:'📦 GESTION STOCK'},
+          {id:'categories',label:'CATEGORIES'},
+          {id:'tables',label:'TABLES'},
+          {id:'users',label:'USERS'},
+          {id:'rapports',label:'RAPPORTS'}
+        ].map((t)=><button key={t.id} onClick={()=>setTab(t.id)} className={`px-3 py-2.5 rounded-xl text-[11px] font-black whitespace-nowrap ${tab===t.id?'bg-orange-600 text-white':'bg-zinc-800 text-zinc-400'}`}>{t.label}</button>)}
       </div>
       <div className="p-4 max-w-5xl mx-auto">
-        {tab==='menu'&&<MenuTab/>}{tab==='matiere'&&<MatiereTab/>}{tab==='stock'&&<StockTab/>}{tab==='categories'&&<CategoriesTab/>}{tab==='tables'&&<TablesTab/>}{tab==='users'&&<UsersTab/>}{tab==='rapports'&&<RapportsTab/>}
+        {tab==='menu'&&<MenuTab/>}
+        {tab==='gestion-stock'&&<GestionStockTab/>}
+        {tab==='categories'&&<CategoriesTab/>}
+        {tab==='tables'&&<TablesTab/>}
+        {tab==='users'&&<UsersTab/>}
+        {tab==='rapports'&&<RapportsTab/>}
       </div>
     </div>
   );
 }
 
+// ===== 📦 GESTION STOCK TAB - KOLCHI DYAL STOCK F BLASSA WA7DA =====
+function GestionStockTab(){
+  const [mats,setMats]=useState<any[]>([]);
+  const [recettes,setRecettes]=useState<any[]>([]);
+  const [menus,setMenus]=useState<any[]>([]);
+  const [commandeItems,setCommandeItems]=useState<any[]>([]);
+  const [mouvements,setMouvements]=useState<any[]>([]);
+  const [selected,setSelected]=useState<any>(null);
+  const [showAdd,setShowAdd]=useState(false);
+  const [edit,setEdit]=useState<any>(null);
+  const [date,setDate]=useState(new Date().toISOString().split('T')[0]);
+  const [filter,setFilter]=useState('all'); // all, alerte, ok
+  const [qteMouvement,setQteMouvement]=useState('');
+  const [typeMouvement,setTypeMouvement]=useState<'entree'|'sortie'>('entree');
+  const [motif,setMotif]=useState('');
+
+  const load=useCallback(async()=>{
+    const [m,r,mu]=await Promise.all([
+      supabase.from('matiere_premiere').select('*').order('nom'),
+      supabase.from('recette').select('*'),
+      supabase.from('menu').select('*')
+    ]);
+    setMats(m.data||[]); setRecettes(r.data||[]); setMenus(mu.data||[]);
+    
+    const start=new Date(date); start.setHours(0,0,0,0);
+    const end=new Date(date); end.setHours(23,59,59,999);
+    let items:any[]=[];
+    const {data:cmds}=await supabase.from('commandes').select('id').eq('statut','paye').gte('paye_at',start.toISOString()).lte('paye_at',end.toISOString());
+    if(cmds?.length){
+      const {data}=await supabase.from('commande_items').select('*').in('commande_id',cmds.map((c:any)=>c.id));
+      items=data||[];
+    } else {
+      const {data:cmds2}=await supabase.from('commandes').select('id').eq('statut','paye').gte('created_at',start.toISOString()).lte('created_at',end.toISOString());
+      if(cmds2?.length){
+        const {data}=await supabase.from('commande_items').select('*').in('commande_id',cmds2.map((c:any)=>c.id));
+        items=data||[];
+      }
+    }
+    setCommandeItems(items);
+
+    // Mouvements stock (ila kayna table)
+    const {data:mov}=await supabase.from('stock_mouvements').select('*').order('created_at',{ascending:false}).limit(100);
+    setMouvements(mov||[]);
+  },[date]);
+
+  useEffect(()=>{load();},[load]);
+
+  const getConso = (matiereId:string)=>{
+    const recs = recettes.filter((r:any)=>r.matiere_id===matiereId);
+    let totalQte=0, totalPlats=0;
+    let details:any[]=[];
+    recs.forEach((rec:any)=>{
+      const menu = menus.find((m:any)=>m.id===rec.menu_id);
+      if(!menu) return;
+      const ventes = commandeItems.filter((ci:any)=> ci.menu_id===menu.id || ci.menu_nom===menu.nom || ci.nom===menu.nom);
+      const qteVendue = ventes.reduce((s:any,v:any)=> s+Number(v.qte||1),0);
+      const conso = qteVendue * Number(rec.qte_necessaire||0);
+      totalQte+=conso; totalPlats+=qteVendue;
+      if(qteVendue>0 || true) details.push({menu_nom:menu.nom, qte_necessaire:rec.qte_necessaire, unite:rec.unite, qteVendue, conso});
+    });
+    return {totalQte, totalPlats, details, nbPlats:recs.length};
+  };
+
+  const filteredMats = mats.filter((m:any)=>{
+    const {totalQte}=getConso(m.id);
+    const stockRestant = Number(m.quantite) - totalQte;
+    const seuil = Number(m.seuil_alerte||2);
+    if(filter==='alerte') return stockRestant <= seuil;
+    if(filter==='ok') return stockRestant > seuil;
+    return true;
+  });
+
+  const handleMouvement = async ()=>{
+    if(!selected || !qteMouvement) return;
+    const qte = parseFloat(qteMouvement);
+    if(!qte) return;
+    const newQte = typeMouvement==='entree' ? Number(selected.quantite)+qte : Number(selected.quantite)-qte;
+    if(newQte<0) return alert('Stock maymkanch ywali <0');
+
+    // Update stock
+    await supabase.from('matiere_premiere').update({quantite:newQte}).eq('id',selected.id);
+    
+    // Log mouvement ila kayna table, sinon ignore
+    try{
+      await supabase.from('stock_mouvements').insert([{matiere_id:selected.id, type:typeMouvement, quantite:qte, ancien_stock:selected.quantite, nouveau_stock:newQte, motif, date: new Date().toISOString()}]);
+    }catch{}
+
+    setQteMouvement(''); setMotif(''); setSelected({...selected, quantite:newQte}); load();
+    alert(`${typeMouvement==='entree'?'Dakhal':'Kharaj'} ${qte} ${selected.unite} - Stock daba ${newQte} ${selected.unite}`);
+  };
+
+  return <div className="space-y-4">
+    <div className="flex gap-2">
+      <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-3 text-sm font-bold"/>
+      <button onClick={()=>{setEdit(null);setShowAdd(true);}} className="bg-orange-600 px-4 rounded-xl font-black text-sm">+ MATIERE</button>
+    </div>
+
+    {/* STATS */}
+    <div className="grid grid-cols-3 gap-2">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-center">
+        <div className="text-[10px] text-zinc-500">TOTAL MATIERES</div>
+        <div className="font-black text-xl">{mats.length}</div>
+      </div>
+      <div className="bg-red-950/30 border border-red-800 rounded-xl p-3 text-center">
+        <div className="text-[10px] text-red-400">ALERTE STOCK</div>
+        <div className="font-black text-xl text-red-400">{mats.filter((m:any)=>{const {totalQte}=getConso(m.id); return (Number(m.quantite)-totalQte) <= Number(m.seuil_alerte||2)}).length}</div>
+      </div>
+      <div className="bg-green-950/30 border border-green-800 rounded-xl p-3 text-center">
+        <div className="text-[10px] text-green-400">CONSOMMATION {date}</div>
+        <div className="font-black text-sm text-green-400">{mats.reduce((s:any,m:any)=>s+getConso(m.id).totalQte,0).toFixed(0)} unités</div>
+      </div>
+    </div>
+
+    {/* FILTRES */}
+    <div className="flex gap-2">
+      <button onClick={()=>setFilter('all')} className={`flex-1 py-2 rounded-xl text-xs font-bold ${filter==='all'?'bg-white text-black':'bg-zinc-800'}`}>TOUT ({mats.length})</button>
+      <button onClick={()=>setFilter('alerte')} className={`flex-1 py-2 rounded-xl text-xs font-bold ${filter==='alerte'?'bg-red-600 text-white':'bg-zinc-800 text-red-400'}`}>⚠️ ALERTE</button>
+      <button onClick={()=>setFilter('ok')} className={`flex-1 py-2 rounded-xl text-xs font-bold ${filter==='ok'?'bg-green-600 text-white':'bg-zinc-800 text-green-400'}`}>✅ OK</button>
+    </div>
+
+    {/* LISTE MATIERES */}
+    <div className="space-y-2">
+      {filteredMats.map((m:any)=>{
+        const {totalQte, totalPlats, nbPlats}=getConso(m.id);
+        const restant = Number(m.quantite) - totalQte;
+        const seuil = Number(m.seuil_alerte||2);
+        const isAlerte = restant <= seuil;
+        const isCritique = restant <= 0;
+        return (
+          <div key={m.id} onClick={()=>setSelected(m)} className={`bg-zinc-900 p-4 rounded-xl border-2 cursor-pointer ${isCritique?'border-red-600 bg-red-950/20':isAlerte?'border-orange-600 bg-orange-950/10':selected?.id===m.id?'border-orange-500':'border-zinc-800'}`}>
+            <div className="flex justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-white">{m.nom}</span>
+                  {isCritique && <span className="bg-red-600 text-white text-[9px] px-2 py-1 rounded-full font-black">RUPTURE</span>}
+                  {isAlerte && !isCritique && <span className="bg-orange-600 text-white text-[9px] px-2 py-1 rounded-full font-black">ALERTE</span>}
+                </div>
+                <div className="text-xs mt-1 flex gap-3">
+                  <span className="text-zinc-400">Stock: <b className="text-white">{Number(m.quantite).toFixed(1)} {m.unite}</b></span>
+                  <span className="text-orange-400">Tkal lyum: <b>{totalQte.toFixed(1)} {m.unite}</b></span>
+                  <span className={restant<=seuil?'text-red-400 font-black':'text-green-400'}>B9a: <b>{restant.toFixed(1)} {m.unite}</b></span>
+                </div>
+                <div className="text-[11px] text-zinc-500 mt-1">{nbPlats} plats • {totalPlats} plats tba3o lyum • Seuil: {seuil} {m.unite}</div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <button onClick={(e)=>{e.stopPropagation(); setEdit(m); setShowAdd(true);}} className="p-2 bg-zinc-800 rounded-lg"><Edit3 className="w-4 h-4"/></button>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+
+    {/* DETAIL MODAL - GESTION STOCK */}
+    {selected && (
+      <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 overflow-auto">
+        <div className="bg-zinc-900 rounded-2xl w-full max-w-lg border-2 border-orange-500 max-h-[90vh] overflow-auto">
+          <div className="p-4 border-b border-zinc-800 flex justify-between sticky top-0 bg-zinc-900 z-10">
+            <div>
+              <h3 className="font-black text-lg flex items-center gap-2"><Package className="w-5 h-5 text-orange-500"/>{selected.nom}</h3>
+              <div className="text-xs text-zinc-400">Stock: {selected.quantite} {selected.unite} • Seuil alerte: {selected.seuil_alerte||2} {selected.unite}</div>
+            </div>
+            <button onClick={()=>setSelected(null)}><X className="w-6 h-6"/></button>
+          </div>
+          
+          <div className="p-4 space-y-4">
+            {/* AJOUT / RETRAIT STOCK */}
+            <div className="bg-black rounded-xl p-4 border border-zinc-800">
+              <h4 className="font-black text-sm mb-3 flex items-center gap-2"><Plus className="w-4 h-4"/> GESTION STOCK - DAKHAL / KHARAJ</h4>
+              <div className="flex gap-2 mb-3">
+                <button onClick={()=>setTypeMouvement('entree')} className={`flex-1 py-3 rounded-xl font-black text-sm ${typeMouvement==='entree'?'bg-green-600 text-white':'bg-zinc-800'}`}>+ ENTRÉE (Dakhal)</button>
+                <button onClick={()=>setTypeMouvement('sortie')} className={`flex-1 py-3 rounded-xl font-black text-sm ${typeMouvement==='sortie'?'bg-red-600 text-white':'bg-zinc-800'}`}>- SORTIE (Kharaj)</button>
+              </div>
+              <div className="flex gap-2 mb-2">
+                <input value={qteMouvement} onChange={e=>setQteMouvement(e.target.value)} type="number" placeholder={`Qte ${selected.unite}`} className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-3 text-center font-bold"/>
+                <button onClick={handleMouvement} className={`px-6 rounded-xl font-black ${typeMouvement==='entree'?'bg-green-600':'bg-red-600'}`}>{typeMouvement==='entree'?'+':'-'}</button>
+              </div>
+              <input value={motif} onChange={e=>setMotif(e.target.value)} placeholder="Motif (ex: Achat, Perte, Inventaire...)" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm"/>
+            </div>
+
+            {/* CONSOMMATION DU JOUR */}
+            <div>
+              {(()=>{
+                const {totalQte, totalPlats, details}=getConso(selected.id);
+                return <>
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    <div className="bg-black rounded-xl p-3 border border-zinc-800 text-center"><div className="text-[10px] text-zinc-500">PLATS LI KAYST3AMLOHA</div><div className="font-black text-lg">{details.length}</div></div>
+                    <div className="bg-black rounded-xl p-3 border border-green-800 text-center"><div className="text-[10px] text-green-400">TBA3O LYUM</div><div className="font-black text-lg text-green-400">{totalPlats}</div></div>
+                    <div className="bg-black rounded-xl p-3 border border-orange-800 text-center"><div className="text-[10px] text-orange-400">TKAL LYUM</div><div className="font-black text-lg text-orange-400">{totalQte.toFixed(1)} {selected.unite}</div></div>
+                  </div>
+
+                  <h4 className="font-black text-sm mb-2">📋 Les repas li tkalo man {selected.nom}:</h4>
+                  {details.length===0 && <div className="text-sm text-zinc-500 p-3 text-center bg-black rounded-xl">Hta plat ma kayst3amal had matiere f recette</div>}
+                  {details.map((d:any,i:any)=>(
+                    <div key={i} className="bg-black rounded-xl p-3 border border-zinc-800 mb-2">
+                      <div className="flex justify-between">
+                        <span className="font-bold text-sm">{d.menu_nom}</span>
+                        <span className={`text-xs px-2 py-1 rounded-full font-bold ${d.qteVendue>0?'bg-green-600':'bg-zinc-700'}`}>{d.qteVendue} x</span>
+                      </div>
+                      <div className="text-xs text-zinc-400 mt-1 flex justify-between">
+                        <span>{d.qte_necessaire} {d.unite}/plat</span>
+                        <span className="font-bold text-orange-400">{d.conso.toFixed(1)} {d.unite} tkalo</span>
+                      </div>
+                    </div>
+                  ))}
+
+                  <div className="bg-orange-950/30 border border-orange-700 rounded-xl p-3 mt-3">
+                    <div className="text-sm text-white">Stock: <b>{selected.quantite} {selected.unite}</b> - Tkal lyum: <b>{totalQte.toFixed(1)} {selected.unite}</b> - B9a: <b className={(Number(selected.quantite)-totalQte)<=Number(selected.seuil_alerte||2)?'text-red-400':'text-green-400'}>{(Number(selected.quantite)-totalQte).toFixed(1)} {selected.unite}</b></div>
+                  </div>
+                </>
+              })()}
+            </div>
+
+            {/* HISTORIQUE */}
+            <div className="bg-black rounded-xl p-3 border border-zinc-800">
+              <h4 className="font-black text-sm mb-2 flex items-center gap-2"><History className="w-4 h-4"/> HISTORIQUE MOUVEMENTS</h4>
+              {mouvements.filter((mv:any)=>mv.matiere_id===selected.id).slice(0,10).map((mv:any)=>(
+                <div key={mv.id} className="flex justify-between py-2 border-b border-zinc-800 last:border-0 text-xs">
+                  <span className={mv.type==='entree'?'text-green-400':'text-red-400'}>{mv.type==='entree'?'+':''}{mv.quantite} {selected.unite} - {mv.motif||''}</span>
+                  <span className="text-zinc-500">{new Date(mv.created_at).toLocaleDateString()}</span>
+                </div>
+              ))}
+              {mouvements.filter((mv:any)=>mv.matiere_id===selected.id).length===0 && <div className="text-xs text-zinc-500 text-center py-2">Mazal ma kayn 7araka - khassk table stock_mouvements f Supabase (ikhtiyari)</div>}
+            </div>
+
+            <button onClick={()=>setSelected(null)} className="w-full bg-white text-black py-3 rounded-xl font-black">Sedd</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {showAdd&&<MatiereFormStock mat={edit} onClose={()=>{setShowAdd(false);setEdit(null);}} onSaved={()=>{load(); setShowAdd(false); setEdit(null);}}/>}
+  </div>
+}
+
+function MatiereFormStock({mat,onClose,onSaved}:any){
+  const [nom,setNom]=useState(mat?.nom||'');
+  const [qte,setQte]=useState(mat?String(mat.quantite):'10');
+  const [unite,setUnite]=useState(mat?.unite||'kg');
+  const [seuil,setSeuil]=useState(mat?String(mat.seuil_alerte||2):'2');
+  const save=async()=>{
+    const p={nom,quantite:parseFloat(qte)||0,unite,seuil_alerte:parseFloat(seuil)||2};
+    if(mat) await supabase.from('matiere_premiere').update(p).eq('id',mat.id);
+    else await supabase.from('matiere_premiere').insert(p);
+    onSaved();
+  };
+  return <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"><div className="bg-zinc-900 rounded-2xl w-full max-w-md border border-zinc-800 p-5 space-y-3">
+    <h3 className="font-black">{mat?'Modifier':'Nouvelle'} Matière</h3>
+    <input value={nom} onChange={e=>setNom(e.target.value)} placeholder="Nom (Djaj, Fromage...)" className="w-full bg-black p-3 rounded-xl border border-zinc-700"/>
+    <div className="flex gap-2">
+      <input value={qte} onChange={e=>setQte(e.target.value)} type="number" placeholder="Stock" className="flex-1 bg-black p-3 rounded-xl border border-zinc-700"/>
+      <select value={unite} onChange={e=>setUnite(e.target.value)} className="w-24 bg-black p-3 rounded-xl border border-zinc-700"><option>kg</option><option>g</option><option>L</option><option>ml</option><option>pcs</option></select>
+    </div>
+    <input value={seuil} onChange={e=>setSeuil(e.target.value)} type="number" placeholder="Seuil alerte" className="w-full bg-black p-3 rounded-xl border border-zinc-700"/>
+    <div className="text-[11px] text-zinc-500">Seuil alerte: ila stock wsal l had ra9m, ghayban lik ALERTE</div>
+    <div className="flex gap-2"><button onClick={onClose} className="flex-1 bg-zinc-800 py-3 rounded-xl">Annuler</button><button onClick={save} className="flex-1 bg-orange-600 py-3 rounded-xl font-bold">Sauver</button></div>
+  </div></div>
+}
+
+// ===== AUTRES TABS (MENU, TABLES...) - KAMAL 9DIM =====
 function TablesTab(){
   const [items,setItems]=useState<any[]>([]);
   const [numero,setNumero]=useState('');
@@ -42,7 +314,7 @@ function MenuTab(){
   const [edit,setEdit]=useState<any>(null);
   const load=useCallback(async()=>{const a=await supabase.from('menu').select('*').order('nom');const b=await supabase.from('categories').select('*').order('ordre');const c=await supabase.from('matiere_premiere').select('*').order('nom');const d=await supabase.from('recette').select('*');setMenus(a.data||[]);setCats(b.data||[]);setMats(c.data||[]);setRec(d.data||[]);},[]);
   useEffect(()=>{load();},[load]);
-  return <div><div className="flex justify-between mb-3"><h2 className="font-bold">Menu {menus.length}</h2><button onClick={()=>{setEdit(null);setShow(true);}} className="bg-orange-600 px-4 py-2 rounded-xl font-bold">+ Plat</button></div><div className="grid md:grid-cols-2 gap-3">{menus.map((m:any)=>{const ings=rec.filter((r:any)=>r.menu_id===m.id);return <div key={m.id} className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden"><div className="h-40 bg-zinc-800">{m.image_url?<img src={m.image_url} className="w-full h-full object-cover"/>:<div className="h-full flex items-center justify-center text-xs text-zinc-500">Sans photo</div>}</div><div className="p-3"><div className="flex justify-between"><div><div className="font-bold">{m.nom} - {m.prix} DH</div></div><div className="flex gap-1"><button onClick={()=>{setEdit(m);setShow(true);}} className="p-2 bg-zinc-800 rounded-lg"><Edit3 className="w-4 h-4"/></button><button onClick={async()=>{if(confirm('Supprimer?')){await supabase.from('menu').delete().eq('id',m.id);load();}}} className="p-2 bg-red-900 rounded-lg"><Trash2 className="w-4 h-4"/></button></div></div></div></div>})}</div>{show&&<MenuForm menu={edit} categories={cats} matieres={mats} recs={rec.filter((r:any)=>r.menu_id===edit?.id)} onClose={()=>{setShow(false);setEdit(null);}} onSaved={load}/>}</div>
+  return <div><div className="flex justify-between mb-3"><h2 className="font-bold">Menu {menus.length}</h2><button onClick={()=>{setEdit(null);setShow(true);}} className="bg-orange-600 px-4 py-2 rounded-xl font-bold">+ Plat</button></div><div className="grid md:grid-cols-2 gap-3">{menus.map((m:any)=>{const ings=rec.filter((r:any)=>r.menu_id===m.id);return <div key={m.id} className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden"><div className="h-40 bg-zinc-800">{m.image_url?<img src={m.image_url} className="w-full h-full object-cover"/>:<div className="h-full flex items-center justify-center text-xs text-zinc-500">Sans photo</div>}</div><div className="p-3"><div className="flex justify-between"><div><div className="font-bold">{m.nom} - {m.prix} DH</div><div className="text-[10px] text-zinc-500">{ings.length} ingrédients</div></div><div className="flex gap-1"><button onClick={()=>{setEdit(m);setShow(true);}} className="p-2 bg-zinc-800 rounded-lg"><Edit3 className="w-4 h-4"/></button><button onClick={async()=>{if(confirm('Supprimer?')){await supabase.from('menu').delete().eq('id',m.id);load();}}} className="p-2 bg-red-900 rounded-lg"><Trash2 className="w-4 h-4"/></button></div></div></div></div>})}</div>{show&&<MenuForm menu={edit} categories={cats} matieres={mats} recs={rec.filter((r:any)=>r.menu_id===edit?.id)} onClose={()=>{setShow(false);setEdit(null);}} onSaved={load}/>}</div>
 }
 
 function MenuForm({menu,categories,matieres,recs,onClose,onSaved}:any){
@@ -70,172 +342,9 @@ function MenuForm({menu,categories,matieres,recs,onClose,onSaved}:any){
   };
   const addIng=()=>{if(!sel) return; const q=parseFloat(qte); if(!q) return; const mat=matieres.find((x:any)=>x.id===sel); if(!mat) return; const newIngs=[...ings,{matiere_id:sel, qte_necessaire:q, _nom:mat.nom, unite}]; setIngs(newIngs); const next=matieres.find((m:any)=>!newIngs.some((i:any)=>i.matiere_id===m.id)); if(next){ setSel(next.id); setUnite(next.unite||'g'); } setQte('150');};
   const save=async()=>{if(!nom||!prix) return alert('Nom + Prix'); const p={nom,prix:parseFloat(prix)||0,categorie:cat,image_url:img,disponible:true}; let id=menu?.id; if(menu){await supabase.from('menu').update(p).eq('id',menu.id);}else{const {data}=await supabase.from('menu').insert(p).select().single(); id=data?.id;} if(id){await supabase.from('recette').delete().eq('menu_id',id); if(ings.length){await supabase.from('recette').insert(ings.map((x:any)=>({menu_id:id, matiere_id:x.matiere_id, qte_necessaire:x.qte_necessaire, unite:x.unite})));}} onSaved(); onClose();};
-  return <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"><div className="bg-zinc-900 rounded-2xl w-full max-w-lg border border-zinc-800"><div className="p-4 flex justify-between border-b border-zinc-800"><h3 className="font-bold">Plat - {ings.length} ing</h3><button onClick={onClose}><X className="w-5 h-5"/></button></div><div className="p-4 space-y-3 max-h-[75vh] overflow-auto"><input value={nom} onChange={e=>setNom(e.target.value)} placeholder="Nom" className="w-full bg-black p-3 rounded-xl border border-zinc-700"/><div className="flex gap-2"><input value={prix} onChange={e=>setPrix(e.target.value)} type="number" placeholder="Prix" className="flex-1 bg-black p-3 rounded-xl border border-zinc-700"/><select value={cat} onChange={e=>setCat(e.target.value)} className="flex-1 bg-black p-3 rounded-xl border border-zinc-700">{categories.map((c:any)=><option key={c.id} value={c.nom}>{c.label}</option>)}</select></div><div className="bg-black border-2 border-dashed border-orange-500/40 rounded-xl p-3"><label className="text-xs text-orange-400 font-bold flex items-center gap-1 mb-2"><ImageIcon className="w-4 h-4"/> PHOTO</label><div className="flex gap-2 items-center"><label className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl p-3 text-center cursor-pointer flex items-center justify-center gap-2"><Upload className="w-4 h-4"/><span className="text-sm font-bold">{uploading?'Upload...':'Choisir'}</span><input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" /></label>{preview && <img src={preview} className="w-16 h-16 rounded-xl object-cover border-2 border-orange-500" />}</div><input value={img} onChange={e=>{setImg(e.target.value); setPreview(e.target.value);}} placeholder="Ou URL" className="mt-2 w-full bg-zinc-900 p-2.5 rounded-xl border border-zinc-700 text-xs" /></div></div><div className="p-4 border-t border-zinc-800 flex gap-2"><button onClick={onClose} className="flex-1 bg-zinc-800 py-3 rounded-xl">Annuler</button><button onClick={save} className="flex-1 bg-orange-600 py-3 rounded-xl font-bold">Sauver {ings.length}</button></div></div></div>
+  return <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"><div className="bg-zinc-900 rounded-2xl w-full max-w-lg border border-zinc-800"><div className="p-4 flex justify-between border-b border-zinc-800"><h3 className="font-bold">Plat - {ings.length} ing</h3><button onClick={onClose}><X className="w-5 h-5"/></button></div><div className="p-4 space-y-3 max-h-[75vh] overflow-auto"><input value={nom} onChange={e=>setNom(e.target.value)} placeholder="Nom" className="w-full bg-black p-3 rounded-xl border border-zinc-700"/><div className="flex gap-2"><input value={prix} onChange={e=>setPrix(e.target.value)} type="number" placeholder="Prix" className="flex-1 bg-black p-3 rounded-xl border border-zinc-700"/><select value={cat} onChange={e=>setCat(e.target.value)} className="flex-1 bg-black p-3 rounded-xl border border-zinc-700">{categories.map((c:any)=><option key={c.id} value={c.nom}>{c.label}</option>)}</select></div><div className="bg-black border border-zinc-700 rounded-xl p-3"><div className="text-xs font-bold mb-2">Recette - Matières ({ings.length})</div><div className="flex gap-2 mb-2"><select value={sel} onChange={e=>{setSel(e.target.value); const mat=matieres.find((m:any)=>m.id===e.target.value); if(mat) setUnite(mat.unite);}} className="flex-1 bg-zinc-900 p-2.5 rounded-xl border border-zinc-700 text-xs"><option value="">Choisir matière</option>{matieres.filter((m:any)=>!ings.some((i:any)=>i.matiere_id===m.id)).map((m:any)=><option key={m.id} value={m.id}>{m.nom} ({m.quantite} {m.unite})</option>)}</select><input value={qte} onChange={e=>setQte(e.target.value)} type="number" className="w-20 bg-zinc-900 p-2.5 rounded-xl border border-zinc-700 text-xs"/><select value={unite} onChange={e=>setUnite(e.target.value)} className="w-16 bg-zinc-900 p-2.5 rounded-xl border border-zinc-700 text-xs"><option>g</option><option>kg</option><option>ml</option><option>L</option><option>pcs</option></select><button onClick={addIng} className="bg-orange-600 px-3 rounded-xl text-xs font-bold">+</button></div>{ings.map((ing:any,i:any)=><div key={i} className="flex justify-between bg-zinc-900 p-2 rounded-lg text-xs mb-1"><span>{ing._nom||matieres.find((m:any)=>m.id===ing.matiere_id)?.nom} - {ing.qte_necessaire} {ing.unite}</span><button onClick={()=>setIngs(ings.filter((_:any,idx:any)=>idx!==i))} className="text-red-400">X</button></div>)}</div><div className="bg-black border-2 border-dashed border-orange-500/40 rounded-xl p-3"><label className="text-xs text-orange-400 font-bold flex items-center gap-1 mb-2"><ImageIcon className="w-4 h-4"/> PHOTO</label><div className="flex gap-2 items-center"><label className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl p-3 text-center cursor-pointer flex items-center justify-center gap-2"><Upload className="w-4 h-4"/><span className="text-sm font-bold">{uploading?'Upload...':'Choisir'}</span><input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" /></label>{preview && <img src={preview} className="w-16 h-16 rounded-xl object-cover border-2 border-orange-500" />}</div></div></div><div className="p-4 border-t border-zinc-800 flex gap-2"><button onClick={onClose} className="flex-1 bg-zinc-800 py-3 rounded-xl">Annuler</button><button onClick={save} className="flex-1 bg-orange-600 py-3 rounded-xl font-bold">Sauver {ings.length}</button></div></div></div>
 }
 
-// ===== MATIERE TAB JDID - FIHA LES REPAS LI TKALO MANHA =====
-function MatiereTab(){
-  const [mats,setMats]=useState<any[]>([]);
-  const [recettes,setRecettes]=useState<any[]>([]);
-  const [menus,setMenus]=useState<any[]>([]);
-  const [commandeItems,setCommandeItems]=useState<any[]>([]);
-  const [show,setShow]=useState(false);
-  const [edit,setEdit]=useState<any>(null);
-  const [selected,setSelected]=useState<any>(null);
-  const [date,setDate]=useState(new Date().toISOString().split('T')[0]);
-
-  const load=useCallback(async()=>{
-    const [m,r,mu]=await Promise.all([
-      supabase.from('matiere_premiere').select('*').order('nom'),
-      supabase.from('recette').select('*'),
-      supabase.from('menu').select('*').order('nom')
-    ]);
-    setMats(m.data||[]); setRecettes(r.data||[]); setMenus(mu.data||[]);
-    
-    const start=new Date(date); start.setHours(0,0,0,0);
-    const end=new Date(date); end.setHours(23,59,59,999);
-    const {data:cmds}=await supabase.from('commandes').select('id').eq('statut','paye').gte('paye_at',start.toISOString()).lte('paye_at',end.toISOString());
-    let items:any[]=[];
-    if(cmds && cmds.length){
-      const ids=cmds.map((c:any)=>c.id);
-      const {data}=await supabase.from('commande_items').select('*').in('commande_id',ids);
-      items=data||[];
-    } else {
-      const {data:cmds2}=await supabase.from('commandes').select('id').eq('statut','paye').gte('created_at',start.toISOString()).lte('created_at',end.toISOString());
-      if(cmds2 && cmds2.length){
-        const ids=cmds2.map((c:any)=>c.id);
-        const {data}=await supabase.from('commande_items').select('*').in('commande_id',ids);
-        items=data||[];
-      }
-    }
-    setCommandeItems(items);
-  },[date]);
-
-  useEffect(()=>{load();},[load]);
-
-  const getDetails = (matiereId:string)=>{
-    const recs = recettes.filter((r:any)=>r.matiere_id===matiereId);
-    return recs.map((rec:any)=>{
-      const menu = menus.find((m:any)=>m.id===rec.menu_id);
-      if(!menu) return null;
-      const ventes = commandeItems.filter((ci:any)=> (ci.menu_id===menu.id) || (ci.menu_nom===menu.nom) || (ci.nom===menu.nom));
-      const qteVendue = ventes.reduce((s:any, v:any)=> s + Number(v.qte||1), 0);
-      const consoTotale = qteVendue * Number(rec.qte_necessaire||0);
-      return {
-        menu_nom: menu.nom,
-        menu_prix: menu.prix,
-        qte_necessaire: rec.qte_necessaire,
-        unite: rec.unite||'g',
-        qteVendue,
-        consoTotale
-      };
-    }).filter(Boolean);
-  };
-
-  const selectedDetails = selected ? getDetails(selected.id) : [];
-  const totalConsoSelected = selectedDetails.reduce((s:any,d:any)=> s + d.consoTotale, 0);
-  const totalPlatsSelected = selectedDetails.reduce((s:any,d:any)=> s + d.qteVendue, 0);
-
-  return <div>
-    <div className="flex justify-between mb-3 items-center">
-      <h2 className="font-black text-lg">Matiere {mats.length}</h2>
-      <div className="flex gap-2">
-        <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="bg-zinc-900 border border-zinc-700 rounded-xl px-2 py-2 text-xs"/>
-        <button onClick={()=>{setEdit(null);setShow(true);}} className="bg-orange-600 px-3 py-2 rounded-xl text-sm font-bold">+ Matiere</button>
-      </div>
-    </div>
-
-    <div className="bg-zinc-900 rounded-xl p-3 mb-4 border border-zinc-800 text-xs">
-      <div className="font-bold text-orange-400 mb-1">👉 Warak 3la ay matiere tchouf les repas li tkalo manha</div>
-      <div className="text-zinc-400">Kay7sab lik ch7al tba3 w ch7al tkal manha f nhar li khtarti.</div>
-    </div>
-
-    <div className="grid gap-2">
-      {mats.map((m:any)=>{
-        const details = getDetails(m.id);
-        const totalConso = details.reduce((s:any,d:any)=> s + d.consoTotale, 0);
-        const totalVentes = details.reduce((s:any,d:any)=> s + d.qteVendue, 0);
-        const nbPlats = details.length;
-        return (
-          <div key={m.id} onClick={()=>setSelected(m)} className={`bg-zinc-900 p-4 rounded-xl border-2 cursor-pointer ${selected?.id===m.id?'border-orange-500':'border-zinc-800'}`}>
-            <div className="flex justify-between">
-              <div>
-                <div className="font-black text-white flex items-center gap-2">{m.nom} <span className="text-[10px] bg-zinc-800 px-2 py-1 rounded-full">{m.quantite} {m.unite}</span></div>
-                <div className="text-xs text-zinc-400 mt-1">{nbPlats} plats kayst3amloha • {totalVentes} plats tba3o lyum • <span className="text-orange-400 font-bold">{totalConso.toFixed(0)} {details[0]?.unite||m.unite} tkalo</span></div>
-                <div className="text-[11px] text-zinc-500 mt-1">{details.slice(0,3).map((d:any)=>d.menu_nom).join(', ')}{details.length>3?` +${details.length-3}`:''}</div>
-              </div>
-              <div className="flex gap-1 items-start">
-                <button onClick={(e)=>{e.stopPropagation(); setEdit(m);setShow(true);}} className="p-2 bg-zinc-800 rounded-lg"><Edit3 className="w-4 h-4"/></button>
-                <button onClick={async(e)=>{e.stopPropagation(); if(confirm('Supprimer?')){await supabase.from('matiere_premiere').delete().eq('id',m.id);load();}}} className="p-2 bg-red-900 rounded-lg"><Trash2 className="w-4 h-4"/></button>
-              </div>
-            </div>
-          </div>
-        )
-      })}
-    </div>
-
-    {selected && (
-      <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4">
-        <div className="bg-zinc-900 rounded-2xl w-full max-w-lg border-2 border-orange-500 max-h-[85vh] overflow-auto">
-          <div className="p-4 border-b border-zinc-800 flex justify-between sticky top-0 bg-zinc-900">
-            <div>
-              <h3 className="font-black text-lg">{selected.nom}</h3>
-              <div className="text-xs text-zinc-400">Stock: {selected.quantite} {selected.unite} • {selectedDetails.length} repas kayst3amloha</div>
-            </div>
-            <button onClick={()=>setSelected(null)}><X className="w-6 h-6"/></button>
-          </div>
-          
-          <div className="p-4 space-y-3">
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="bg-black rounded-xl p-3 border border-zinc-800"><div className="text-[10px] text-zinc-500">PLATS</div><div className="font-black text-xl">{selectedDetails.length}</div></div>
-              <div className="bg-black rounded-xl p-3 border border-green-800"><div className="text-[10px] text-green-400">TBA3O</div><div className="font-black text-xl text-green-400">{totalPlatsSelected}</div></div>
-              <div className="bg-black rounded-xl p-3 border border-orange-800"><div className="text-[10px] text-orange-400">TKAL</div><div className="font-black text-xl text-orange-400">{totalConsoSelected.toFixed(0)} {selected.unite}</div></div>
-            </div>
-
-            <h4 className="font-black text-sm mt-2">Les repas li tkalo man {selected.nom} - {date}:</h4>
-            {selectedDetails.length===0 && <div className="text-sm text-zinc-500 p-4 text-center">Hta plat ma kayst3amal had matiere</div>}
-            {selectedDetails.map((d:any,i:any)=>(
-              <div key={i} className="bg-black rounded-xl p-3 border border-zinc-800">
-                <div className="flex justify-between">
-                  <div className="font-bold">{d.menu_nom} - {d.menu_prix} DH</div>
-                  <span className={`text-xs px-2 py-1 rounded-full font-bold ${d.qteVendue>0?'bg-green-600':'bg-zinc-700'}`}>{d.qteVendue} x</span>
-                </div>
-                <div className="text-xs text-zinc-400 mt-1 flex justify-between">
-                  <span>Recette: {d.qte_necessaire} {d.unite}/plat</span>
-                  <span className="font-bold text-orange-400">{d.consoTotale.toFixed(0)} {d.unite} tkalo</span>
-                </div>
-              </div>
-            ))}
-
-            <div className="bg-orange-950/30 border border-orange-700 rounded-xl p-3 mt-4">
-              <div className="text-sm text-white">Matière <b>{selected.nom}</b> kayst3amloha <b>{selectedDetails.length} plats</b> - Lyum tba3o <b>{totalPlatsSelected} plats</b>, tkala manha <b>{totalConsoSelected.toFixed(0)} {selected.unite}</b></div>
-              <div className="text-xs text-zinc-400 mt-2">Stock {selected.quantite} {selected.unite} → B9a {(Number(selected.quantite)-totalConsoSelected).toFixed(0)} {selected.unite}</div>
-            </div>
-
-            <button onClick={()=>setSelected(null)} className="w-full bg-white text-black py-3 rounded-xl font-black mt-2">Sedd</button>
-          </div>
-        </div>
-      </div>
-    )}
-
-    {show&&<MatiereForm mat={edit} onClose={()=>{setShow(false);setEdit(null);}} onSaved={load}/>}
-  </div>
-}
-
-function MatiereForm({mat,onClose,onSaved}:any){
-  const [nom,setNom]=useState(mat?.nom||'');
-  const [qte,setQte]=useState(mat?String(mat.quantite):'10');
-  const [unite,setUnite]=useState(mat?.unite||'kg');
-  const save=async()=>{
-    const p={nom,quantite:parseFloat(qte)||0,unite,seuil_alerte:2};
-    if(mat) await supabase.from('matiere_premiere').update(p).eq('id',mat.id);
-    else await supabase.from('matiere_premiere').insert(p);
-    onSaved(); onClose();
-  };
-  return <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"><div className="bg-zinc-900 rounded-2xl w-full max-w-md border border-zinc-800 p-5 space-y-3"><input value={nom} onChange={e=>setNom(e.target.value)} placeholder="Nom matiere" className="w-full bg-black p-3 rounded-xl border border-zinc-700"/><div className="flex gap-2"><input value={qte} onChange={e=>setQte(e.target.value)} type="number" className="flex-1 bg-black p-3 rounded-xl border border-zinc-700"/><select value={unite} onChange={e=>setUnite(e.target.value)} className="w-24 bg-black p-3 rounded-xl border border-zinc-700"><option>kg</option><option>g</option><option>L</option><option>ml</option><option>pcs</option></select></div><div className="flex gap-2"><button onClick={onClose} className="flex-1 bg-zinc-800 py-3 rounded-xl">Annuler</button><button onClick={save} className="flex-1 bg-orange-600 py-3 rounded-xl font-bold">Sauver</button></div></div></div>
-}
-
-function StockTab(){const [mats,setMats]=useState<any[]>([]);useEffect(()=>{supabase.from('matiere_premiere').select('*').order('nom').then(({data})=>setMats(data||[]));},[]);return <div>{mats.map((m:any)=><div key={m.id} className="p-3 rounded-xl border bg-zinc-900 border-zinc-800 flex justify-between mb-2"><span>{m.nom}</span><span className="font-bold">{m.quantite} {m.unite}</span></div>)}</div>}
 function CategoriesTab(){const [cats,setCats]=useState<any[]>([]);const [show,setShow]=useState(false);const [edit,setEdit]=useState<any>(null);const load=useCallback(async()=>{const {data}=await supabase.from('categories').select('*').order('ordre');setCats(data||[]);},[]);useEffect(()=>{load();},[load]);return <div><div className="flex justify-between mb-2"><h2 className="font-bold">Categories</h2><button onClick={()=>{setEdit(null);setShow(true);}} className="bg-orange-600 px-3 py-2 rounded-xl">+ Cat</button></div>{cats.map((c:any)=><div key={c.id} className="bg-zinc-900 p-3 rounded-xl border border-zinc-800 flex justify-between mb-2"><div><div className="font-bold">{c.label}</div><div className="text-xs text-zinc-500">{c.nom}</div></div><div className="flex gap-1"><button onClick={()=>{setEdit(c);setShow(true);}} className="p-2 bg-zinc-800 rounded-lg"><Edit3 className="w-4 h-4"/></button><button onClick={async()=>{if(confirm('Supprimer?')){await supabase.from('categories').delete().eq('id',c.id);load();}}} className="p-2 bg-red-900 rounded-lg"><Trash2 className="w-4 h-4"/></button></div></div>)}{show&&<CatForm cat={edit} onClose={()=>{setShow(false);setEdit(null);}} onSaved={load}/>}</div>}
 function CatForm({cat,onClose,onSaved}:any){const [nom,setNom]=useState(cat?.nom||'');const [label,setLabel]=useState(cat?.label||'');const save=async()=>{if(!nom||!label) return alert('Nom+Label');const p={nom:nom.toLowerCase().replace(/\s/g,'_'),label,ordre:1};if(cat) await supabase.from('categories').update(p).eq('id',cat.id);else await supabase.from('categories').insert(p);onSaved();onClose();};return <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"><div className="bg-zinc-900 rounded-2xl w-full max-w-md border border-zinc-800 p-5 space-y-3"><input value={label} onChange={e=>{setLabel(e.target.value);if(!cat) setNom(e.target.value.toLowerCase().replace(/\s/g,'_'));}} placeholder="Label" className="w-full bg-black p-3 rounded-xl border border-zinc-700"/><input value={nom} onChange={e=>setNom(e.target.value)} placeholder="nom" className="w-full bg-black p-3 rounded-xl border border-zinc-700 text-xs"/><div className="flex gap-2"><button onClick={onClose} className="flex-1 bg-zinc-800 py-3 rounded-xl">Annuler</button><button onClick={save} className="flex-1 bg-orange-600 py-3 rounded-xl font-bold">Sauver</button></div></div></div>}
 function UsersTab(){const [users,setUsers]=useState<any[]>([]);const [show,setShow]=useState(false);const [edit,setEdit]=useState<any>(null);const load=useCallback(async()=>{const {data}=await supabase.from('utilisateurs').select('*').order('created_at',{ascending:false});setUsers(data||[]);},[]);useEffect(()=>{load();},[load]);return <div><div className="flex justify-between mb-3"><h2 className="font-bold">Users {users.length}</h2><button onClick={()=>{setEdit(null);setShow(true);}} className="bg-orange-600 px-4 py-2 rounded-xl font-bold">+ User</button></div>{users.map((u:any)=><div key={u.id} className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 flex justify-between mb-2"><div><div className="font-bold">{u.nom} <span className="text-xs bg-zinc-800 px-2 py-1 rounded-lg ml-2">{u.role}</span></div><div className="text-xs text-zinc-500">ID: {u.identifiant} | {u.code_acces}</div></div><div className="flex gap-1"><button onClick={()=>{setEdit(u);setShow(true);}} className="p-2.5 bg-zinc-800 rounded-xl"><Edit3 className="w-4 h-4"/></button><button onClick={async()=>{if(confirm('Supprimer?')){await supabase.from('utilisateurs').delete().eq('id',u.id);load();}}} className="p-2.5 bg-red-900 rounded-xl"><Trash2 className="w-4 h-4"/></button></div></div>)}{show&&<UserForm user={edit} onClose={()=>{setShow(false);setEdit(null);}} onSaved={load}/>}</div>}
@@ -249,7 +358,6 @@ function RapportsTab(){
   const [annuleItemsMap,setAnnuleItemsMap]=useState<any>({});
   const [tableMap,setTableMap]=useState<any>({});
   const [loading,setLoading]=useState(true);
-
   const load=useCallback(async()=>{
     setLoading(true);
     const start=new Date(date); start.setHours(0,0,0,0);
@@ -394,17 +502,6 @@ function RapportsTab(){
         {topEtages.map((e:any)=><div key={e} className="flex justify-between py-1.5 border-b border-zinc-800 last:border-0"><div><div className="font-bold text-sm">{e}</div><div className="text-[10px] text-zinc-500">{stats.byEtage[e+'_count']} cmds</div></div><div className="font-black text-sm">{stats.byEtage[e].toFixed(0)} DH</div></div>)}
       </div>
     </div>
-    {(stats.offertReel>0 || totalsAnnule>0 || stats.remisePerte>0) && (
-      <div className="bg-red-950/20 border-2 border-red-800 rounded-2xl p-4">
-        <h3 className="font-black text-red-400 mb-2 flex items-center gap-2"><AlertTriangle className="w-4 h-4"/> PERTES</h3>
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div><div className="text-[10px] text-orange-300">OFFERT</div><div className="font-black text-orange-400">{stats.offertReel.toFixed(0)} DH</div></div>
-          <div><div className="text-[10px] text-yellow-300">REMISE</div><div className="font-black text-yellow-400">{stats.remisePerte.toFixed(0)} DH</div></div>
-          <div><div className="text-[10px] text-red-300">ANNULE</div><div className="font-black text-red-400">{totalsAnnule.toFixed(0)} DH</div></div>
-        </div>
-        <div className="mt-3 bg-black rounded-xl p-3 text-center"><div className="text-xs text-zinc-400">TOTAL PERTE</div><div className="font-black text-xl text-red-400">{(stats.offertReel+stats.remisePerte+totalsAnnule).toFixed(0)} DH</div></div>
-      </div>
-    )}
     <h3 className="font-black text-green-400">✅ PAYÉES ({cmds.length})</h3>
     {cmds.map((c:any)=>{
       const its=itemsMap[c.id]||[];
