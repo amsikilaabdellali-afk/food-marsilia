@@ -59,7 +59,7 @@ function TablesView({ onSelectTable, profil, onLogout }: any) {
           <p className="text-zinc-500 text-center text-sm mb-6">Fin ghadi tkhdam daba?</p>
           <div className="grid grid-cols-2 gap-4">
             {etages.map((etage) => (
-              <button key={etage.id} onClick={() => setSelectedEtage(etage.id)} className={`${etage.id==='GLOVO'?'bg-gradient-to-br from-yellow-400 to-amber-500 text-black':'bg-[#1A1A1A] border border-zinc-800 text-white'} rounded-[24px] p-6 aspect-square flex flex-col items-center justify-center relative overflow-hidden active:scale-95`}>
+              <button key={etage.id} onClick={() => setSelectedEtage(etage.id)} className={`${etage.id==='GLOVO'?'bg-gradient-to-br from-yellow-400 to-amber-500 text-black':'bg-[#1A1A1A] border border-zinc-800 text-white'} rounded-[24px] p-6 aspect-square flex flex-col items-center justify-center active:scale-95`}>
                 <div className="text-5xl mb-3">{etage.icon}</div>
                 <div className="font-black text-lg">{etage.label}</div>
                 <div className={`text-xs mt-1 ${etage.id==='GLOVO'?'text-black/60':'text-zinc-500'}`}>{etage.desc}</div>
@@ -176,46 +176,87 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
     setEditingNoteId(null); setTempNote("");
   };
 
+  // ===== TICKET CUISINE BLA TAMAN - GHIR SMIT PLAT + QTE + NOTE =====
   const buildTicketHtml = () => {
-    const date = new Date().toLocaleString('fr-MA');
+    const date = new Date().toLocaleString('fr-MA', { hour: '2-digit', minute: '2-digit' });
+    const fullDate = new Date().toLocaleString('fr-MA');
     const lines = cartItems.map(([id,v])=>{
       const mm = menus.find(x=>x.id===id);
-      const prix = getPrix(mm);
-      const notePart = v.note ? `<div style="font-size:16px; font-weight:900; color:#000; background:#ffeb3b; padding:4px 8px; margin-top:6px; border:2px solid #000;">⚠️ ${v.note.toUpperCase()}</div>` : '';
-      return `<div style="font-size:20px; font-weight:900; margin:14px 0; border-bottom:2px dotted #000; padding-bottom:10px;"><div>${v.qte}x ${mm?.nom} - ${prix} DH</div>${notePart}</div>`;
+      const notePart = v.note ? `<div style="font-size:22px; font-weight:900; color:#000; background:#ffeb3b; padding:6px 10px; margin-top:8px; border:3px solid #000; text-align:center;">⚠️ ${v.note.toUpperCase()}</div>` : '';
+      return `<div style="font-size:28px; font-weight:900; margin:18px 0; border-bottom:3px dashed #000; padding-bottom:14px; line-height:1.2;">
+        <div style="display:flex; justify-content:space-between;"><span>${v.qte}X</span><span style="flex:1; margin-left:15px;">${mm?.nom?.toUpperCase()}</span></div>
+        ${notePart}
+      </div>`;
     }).join('');
-    return `<div style="font-family:monospace; width:72mm; padding:4mm; background:white; color:black;">
-      <div style="text-align:center; font-size:24px; font-weight:900;">🍳 CUISINE</div>
-      <div style="text-align:center; font-size:14px; font-weight:700;">MARSILIA FOOD - ${table.etage}</div>
-      <div style="border-top:3px dashed #000; margin:10px 0;"></div>
-      <div style="font-size:32px; font-weight:900; text-align:center;">TABLE ${table.numero}<br>${table.etage}</div>
-      <div style="text-align:center; font-size:12px; margin:6px 0;">${date}<br>${serveurNom}<br><b>TOTAL ${cartTotal.toFixed(0)} DH</b></div>
-      <div style="border-top:3px dashed #000; margin:10px 0;"></div>${lines}
-      <div style="border-top:3px dashed #000; margin:10px 0;"></div>
-      <div style="text-align:center; font-size:26px; font-weight:900;">A PREPARER<br>${cartTotal.toFixed(0)} DH</div>
-      <div style="margin-top:20px; text-align:center; font-size:10px;">---</div>
+
+    return `<div style="font-family:'Courier New', monospace; width:72mm; padding:3mm; background:white; color:black; margin:0;">
+      <div style="text-align:center; border:4px solid #000; padding:8px;">
+        <div style="font-size:32px; font-weight:900;">🍳 CUISINE</div>
+        <div style="font-size:14px; font-weight:700; margin-top:2px;">MARSILIA FOOD</div>
+      </div>
+      <div style="border-top:4px dashed #000; margin:12px 0;"></div>
+      <div style="text-align:center;">
+        <div style="font-size:48px; font-weight:900; line-height:1;">TABLE ${table.numero}</div>
+        <div style="font-size:24px; font-weight:900; margin-top:4px; background:#000; color:#fff; padding:4px;">${table.etage.toUpperCase()} ${isGlovo?'💰':''}</div>
+      </div>
+      <div style="text-align:center; font-size:13px; margin:10px 0; font-weight:700;">
+        ${fullDate}<br>
+        SERVEUR: ${serveurNom.toUpperCase()}<br>
+        ${date} - ${cartItems.reduce((a,b)=>a+b[1].qte,0)} ARTICLES
+      </div>
+      <div style="border-top:4px dashed #000; margin:12px 0;"></div>
+      ${lines}
+      <div style="border-top:4px dashed #000; margin:12px 0;"></div>
+      <div style="text-align:center;">
+        <div style="font-size:28px; font-weight:900;">${cartItems.reduce((a,b)=>a+b[1].qte,0)} PLATS</div>
+        <div style="font-size:16px; font-weight:900; margin-top:6px;">A PREPARER MAINTENANT</div>
+      </div>
+      <div style="margin-top:30px; text-align:center; font-size:10px;">----------------------------</div>
+      <div style="height:40px;"></div>
     </div>`;
   };
 
   const printTicket = (innerHtml: string) => {
-    // FIX PRINT - kaykhdam f telephone
-    const win = window.open('', '_blank', 'width=400,height=600');
-    if(!win){
-      // Fallback iframe
+    // Imprimante thermique 80mm
+    const html = `
+      <html>
+        <head>
+          <title>Cuisine T${table.numero}</title>
+          <style>
+            @page { size: 80mm auto; margin: 0; }
+            body { margin: 0; padding: 0; background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            * { -webkit-print-color-adjust: exact; }
+          </style>
+        </head>
+        <body onload="setTimeout(()=>{window.print();}, 400)">
+          ${innerHtml}
+          <script>
+            window.onafterprint = () => { setTimeout(()=>window.close(), 500); };
+            setTimeout(()=>{ window.print(); }, 500);
+          <\/script>
+        </body>
+      </html>
+    `;
+    
+    // N7awlo b window.open - kaykhdam mzyan m3a imprimante thermique
+    const win = window.open('', '_blank', 'width=400,height=600,left=200,top=100');
+    if(win){
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+    } else {
+      // Fallback - iframe
       const iframe = document.createElement('iframe');
-      iframe.style.cssText = 'position:fixed; left:0; top:0; width:100%; height:100%; border:0; background:white; z-index:9999;';
+      iframe.style.cssText = 'position:fixed; left:0; top:0; width:80mm; height:100%; border:0; background:white; z-index:9999;';
       document.body.appendChild(iframe);
       const doc = iframe.contentWindow?.document;
       if(doc){
         doc.open();
-        doc.write(`<html><head><style>@page{size:80mm auto;margin:0} body{margin:0; padding:10px;}</style></head><body>${innerHtml}<script>setTimeout(()=>{window.print(); setTimeout(()=>{window.parent.document.body.removeChild(window.frameElement)},1000)},500)<\/script></body></html>`);
+        doc.write(html);
         doc.close();
+        setTimeout(()=>{ try{ document.body.removeChild(iframe); }catch{} }, 3000);
       }
-      return;
     }
-    win.document.open();
-    win.document.write(`<html><head><title>TABLE ${table.numero}</title><style>@page{size:80mm auto;margin:0} body{margin:0; padding:0; background:white;} </style></head><body>${innerHtml}<script>setTimeout(()=>{window.print(); setTimeout(()=>window.close(),800)},400)<\/script></body></html>`);
-    win.document.close();
   };
 
   const send = async () => {
@@ -226,9 +267,6 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
     const ticketHtml = buildTicketHtml();
     
     try {
-      console.log('Sending commande...', table.id, cartTotal);
-      
-      // ===== FIX 1: N7aydo etage hit makaynach f table commandes =====
       const { data: cmd, error: cmdError } = await supabase.from('commandes').insert({ 
         table_id: table.id, 
         serveur_nom: serveurNom, 
@@ -237,7 +275,6 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
       }).select().single();
       
       if(cmdError){
-        console.error('Erreur commande:', cmdError);
         alert('Erreur commande: ' + cmdError.message);
         setSending(false);
         return;
@@ -249,13 +286,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
         return;
       }
 
-      console.log('Commande créée:', cmd.id);
-
-      // ===== FIX 2: N7aydo note w menu_nom ila makayninch =====
-      // Njarbo lwl b kolchi, ila fail njarbo ghir minimal
       let itemsInserted = false;
-      
-      // Try 1: avec note et menu_nom
       try{
         const itemsFull = cartItems.map(([id, v]) => { 
           const mm = menus.find((m) => m.id === id)!; 
@@ -264,8 +295,6 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
         const { error } = await supabase.from('commande_items').insert(itemsFull as any);
         if(!error) itemsInserted = true;
         else {
-          console.log('Try full failed, try minimal:', error.message);
-          // Try 2: sans note
           const itemsNoNote = cartItems.map(([id, v]) => { 
             const mm = menus.find((m) => m.id === id)!; 
             return { commande_id: cmd.id, menu_id: id, qte: Number(v.qte), prix: getPrix(mm), menu_nom: mm.nom }; 
@@ -273,36 +302,25 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
           const { error: e2 } = await supabase.from('commande_items').insert(itemsNoNote as any);
           if(!e2) itemsInserted = true;
           else {
-            console.log('Try no note failed:', e2.message);
-            // Try 3: minimal ghir li darori
             const itemsMin = cartItems.map(([id, v]) => { 
               const mm = menus.find((m) => m.id === id)!; 
               return { commande_id: cmd.id, menu_id: id, qte: Number(v.qte), prix: getPrix(mm) }; 
             });
             const { error: e3 } = await supabase.from('commande_items').insert(itemsMin as any);
             if(!e3) itemsInserted = true;
-            else {
-              console.error('All tries failed:', e3);
-              alert('Erreur items: ' + e3.message);
-            }
           }
         }
-      }catch(err:any){
-        console.error('Exception items:', err);
-      }
+      }catch(err:any){}
 
       if(!itemsInserted){
-        // Nms7o commande ila items ma dkhloch
         await supabase.from('commandes').delete().eq('id', cmd.id);
         alert('Erreur: items ma dkhloch');
         setSending(false);
         return;
       }
 
-      // Update table
       await supabase.from('tables').update({ statut: 'en_cours' }).eq('id', table.id);
 
-      // Update stock
       for (let i=0;i<cartItems.length;i++){
         const menuId = cartItems[i][0] as string; const qte = cartItems[i][1].qte as number;
         const recs = recettes.filter((r: any) => r.menu_id === menuId);
@@ -315,17 +333,13 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
         }
       }
 
-      // PRINT TICKET
-      console.log('Printing ticket...');
+      // PRINT CUISINE TICKET BLA PRIX
       printTicket(ticketHtml);
-
-      alert(`✅ Commande Table ${table.numero} tsiftat l cuisine\nTOTAL ${cartTotal} DH`);
       
       setSending(false);
       onBack();
       
     } catch (e:any){ 
-      console.error('Exception send:', e);
       alert('Erreur: '+e.message); 
       setSending(false);
     }
@@ -371,7 +385,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
           <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#121212]/95 backdrop-blur border-t border-white/10 p-4">
             <div className="max-w-4xl mx-auto flex items-center justify-between">
               <div><div className="text-white/40 text-xs">{cartItems.reduce((a,b)=>a+b[1].qte,0)} articles</div><div className="text-white text-xl font-black">{cartTotal.toFixed(0)} DH</div></div>
-              <button onClick={send} disabled={sending} className={`px-7 py-3.5 rounded-full font-black flex items-center gap-2 ${isGlovo?'bg-yellow-500 text-black':'bg-[#FF6B00] text-white'}`}><Send className="w-5 h-5" />{sending? 'Envoi...' : 'Envoyer'}</button>
+              <button onClick={send} disabled={sending} className={`px-7 py-3.5 rounded-full font-black flex items-center gap-2 ${isGlovo?'bg-yellow-500 text-black':'bg-[#FF6B00] text-white'}`}><Send className="w-5 h-5" />{sending? 'Envoi...' : 'Envoyer Cuisine'}</button>
             </div>
           </div>
         )}
@@ -385,7 +399,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
       <div className={`sticky top-0 z-30 border-b px-4 py-3 ${isGlovo?'bg-yellow-500 border-yellow-600 text-black':'bg-[#0A0A0A]/95 border-gray-800 text-white'}`}>
         <div className="flex items-center gap-3 max-w-4xl mx-auto">
           <button onClick={() => setSelectedCat(null)} className={`p-2 rounded-lg ${isGlovo?'bg-black text-white':'bg-[#1A1A1A]'}`}><ArrowLeft className="w-5 h-5" /></button>
-          <div><h2 className="font-bold">{catLabel(selectedCat)} - T{table.numero}</h2><p className="text-xs text-gray-500">{filteredMenus.length} plats</p></div>
+          <div><h2 className="font-bold">{catLabel(selectedCat)} - T{table.numero}</h2><p className="text-xs text-gray-500">{filteredMenus.length} plats - Ticket sans prix</p></div>
         </div>
       </div>
       <div className="p-4 max-w-4xl mx-auto">
@@ -412,7 +426,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
                 return (
                   <div key={id} className="bg-black/60 rounded-xl p-2.5 flex flex-col gap-1.5 border border-white/5">
                     <div className="flex justify-between items-center">
-                      <div className="text-white text-sm font-bold">{v.qte}x {mm?.nom} - {getPrix(mm)} DH</div>
+                      <div className="text-white text-sm font-bold">{v.qte}x {mm?.nom}</div>
                       <button onClick={() => { setEditingNoteId(id); setTempNote(v.note); }} className={`text-[11px] px-2.5 py-1 rounded-full flex items-center gap-1 font-bold ${v.note? 'bg-yellow-400 text-black' : 'bg-white/10 text-white/60'}`}><MessageSquare className="w-3 h-3"/>{v.note? v.note.slice(0,15) : 'Note'}</button>
                     </div>
                     {editingNoteId===id && (<div className="flex gap-2 mt-1"><input autoFocus value={tempNote} onChange={e=>setTempNote(e.target.value)} placeholder="Ex: bla bsla" className="flex-1 bg-[#1E1E1E] border border-white/10 rounded-full px-4 py-2.5 text-sm text-white outline-none"/><button onClick={()=>saveNote(id)} className="bg-[#FF6B00] px-4 rounded-full text-sm font-black">OK</button><button onClick={()=>setEditingNoteId(null)} className="bg-white/10 px-3 rounded-full text-sm">X</button></div>)}
@@ -421,8 +435,8 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
               })}
             </div>
             <div className="flex items-center justify-between pt-2 border-t border-white/5">
-              <div><div className="text-white/40 text-xs">{cartItems.reduce((a,b)=>a+b[1].qte,0)} articles</div><div className="text-white text-xl font-black">{cartTotal.toFixed(0)} DH</div></div>
-              <button onClick={send} disabled={sending} className={`px-7 py-3.5 rounded-full font-black flex items-center gap-2 ${isGlovo?'bg-yellow-500 text-black':'bg-[#FF6B00] text-white'}`}><Send className="w-5 h-5" />{sending? 'Envoi...' : 'Envoyer'}</button>
+              <div><div className="text-white/40 text-xs">{cartItems.reduce((a,b)=>a+b[1].qte,0)} articles - Ticket cuisine sans prix</div><div className="text-white text-xl font-black">Cuisine</div></div>
+              <button onClick={send} disabled={sending} className={`px-7 py-3.5 rounded-full font-black flex items-center gap-2 ${isGlovo?'bg-yellow-500 text-black':'bg-[#FF6B00] text-white'}`}><Send className="w-5 h-5" />{sending? 'Envoi...' : 'Envoyer Cuisine'}</button>
             </div>
           </div>
         </div>
