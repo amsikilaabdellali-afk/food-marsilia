@@ -73,15 +73,174 @@ function MenuForm({menu,categories,matieres,recs,onClose,onSaved}:any){
   return <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"><div className="bg-zinc-900 rounded-2xl w-full max-w-lg border border-zinc-800"><div className="p-4 flex justify-between border-b border-zinc-800"><h3 className="font-bold">Plat - {ings.length} ing</h3><button onClick={onClose}><X className="w-5 h-5"/></button></div><div className="p-4 space-y-3 max-h-[75vh] overflow-auto"><input value={nom} onChange={e=>setNom(e.target.value)} placeholder="Nom" className="w-full bg-black p-3 rounded-xl border border-zinc-700"/><div className="flex gap-2"><input value={prix} onChange={e=>setPrix(e.target.value)} type="number" placeholder="Prix" className="flex-1 bg-black p-3 rounded-xl border border-zinc-700"/><select value={cat} onChange={e=>setCat(e.target.value)} className="flex-1 bg-black p-3 rounded-xl border border-zinc-700">{categories.map((c:any)=><option key={c.id} value={c.nom}>{c.label}</option>)}</select></div><div className="bg-black border-2 border-dashed border-orange-500/40 rounded-xl p-3"><label className="text-xs text-orange-400 font-bold flex items-center gap-1 mb-2"><ImageIcon className="w-4 h-4"/> PHOTO</label><div className="flex gap-2 items-center"><label className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl p-3 text-center cursor-pointer flex items-center justify-center gap-2"><Upload className="w-4 h-4"/><span className="text-sm font-bold">{uploading?'Upload...':'Choisir'}</span><input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" /></label>{preview && <img src={preview} className="w-16 h-16 rounded-xl object-cover border-2 border-orange-500" />}</div><input value={img} onChange={e=>{setImg(e.target.value); setPreview(e.target.value);}} placeholder="Ou URL" className="mt-2 w-full bg-zinc-900 p-2.5 rounded-xl border border-zinc-700 text-xs" /></div></div><div className="p-4 border-t border-zinc-800 flex gap-2"><button onClick={onClose} className="flex-1 bg-zinc-800 py-3 rounded-xl">Annuler</button><button onClick={save} className="flex-1 bg-orange-600 py-3 rounded-xl font-bold">Sauver {ings.length}</button></div></div></div>
 }
 
-function MatiereTab(){const [mats,setMats]=useState<any[]>([]);const [show,setShow]=useState(false);const [edit,setEdit]=useState<any>(null);const load=useCallback(async()=>{const {data}=await supabase.from('matiere_premiere').select('*').order('nom');setMats(data||[]);},[]);useEffect(()=>{load();},[load]);return <div><div className="flex justify-between mb-2"><h2 className="font-bold">Matiere {mats.length}</h2><button onClick={()=>{setEdit(null);setShow(true);}} className="bg-orange-600 px-3 py-2 rounded-xl">+ Matiere</button></div>{mats.map((m:any)=><div key={m.id} className="bg-zinc-900 p-3 rounded-xl border border-zinc-800 flex justify-between mb-2"><div><div className="font-bold">{m.nom}</div><div className="text-xs text-zinc-500">{m.quantite} {m.unite}</div></div><div className="flex gap-1"><button onClick={()=>{setEdit(m);setShow(true);}} className="p-2 bg-zinc-800 rounded-lg"><Edit3 className="w-4 h-4"/></button><button onClick={async()=>{if(confirm('Supprimer?')){await supabase.from('matiere_premiere').delete().eq('id',m.id);load();}}} className="p-2 bg-red-900 rounded-lg"><Trash2 className="w-4 h-4"/></button></div></div>)}{show&&<MatiereForm mat={edit} onClose={()=>{setShow(false);setEdit(null);}} onSaved={load}/>}</div>}
-function MatiereForm({mat,onClose,onSaved}:any){const [nom,setNom]=useState(mat?.nom||'');const [qte,setQte]=useState(mat?String(mat.quantite):'10');const [unite,setUnite]=useState(mat?.unite||'kg');const save=async()=>{const p={nom,quantite:parseFloat(qte)||0,unite,seuil_alerte:2};if(mat) await supabase.from('matiere_premiere').update(p).eq('id',mat.id);else await supabase.from('matiere_premiere').insert(p);onSaved();onClose();};return <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"><div className="bg-zinc-900 rounded-2xl w-full max-w-md border border-zinc-800 p-5 space-y-3"><input value={nom} onChange={e=>setNom(e.target.value)} placeholder="Nom" className="w-full bg-black p-3 rounded-xl border border-zinc-700"/><div className="flex gap-2"><input value={qte} onChange={e=>setQte(e.target.value)} type="number" className="flex-1 bg-black p-3 rounded-xl border border-zinc-700"/><select value={unite} onChange={e=>setUnite(e.target.value)} className="w-24 bg-black p-3 rounded-xl border border-zinc-700"><option>kg</option><option>g</option><option>L</option><option>ml</option><option>pcs</option></select></div><div className="flex gap-2"><button onClick={onClose} className="flex-1 bg-zinc-800 py-3 rounded-xl">Annuler</button><button onClick={save} className="flex-1 bg-orange-600 py-3 rounded-xl font-bold">Sauver</button></div></div></div>}
+// ===== MATIERE TAB JDID - FIHA LES REPAS LI TKALO MANHA =====
+function MatiereTab(){
+  const [mats,setMats]=useState<any[]>([]);
+  const [recettes,setRecettes]=useState<any[]>([]);
+  const [menus,setMenus]=useState<any[]>([]);
+  const [commandeItems,setCommandeItems]=useState<any[]>([]);
+  const [show,setShow]=useState(false);
+  const [edit,setEdit]=useState<any>(null);
+  const [selected,setSelected]=useState<any>(null);
+  const [date,setDate]=useState(new Date().toISOString().split('T')[0]);
+
+  const load=useCallback(async()=>{
+    const [m,r,mu]=await Promise.all([
+      supabase.from('matiere_premiere').select('*').order('nom'),
+      supabase.from('recette').select('*'),
+      supabase.from('menu').select('*').order('nom')
+    ]);
+    setMats(m.data||[]); setRecettes(r.data||[]); setMenus(mu.data||[]);
+    
+    const start=new Date(date); start.setHours(0,0,0,0);
+    const end=new Date(date); end.setHours(23,59,59,999);
+    const {data:cmds}=await supabase.from('commandes').select('id').eq('statut','paye').gte('paye_at',start.toISOString()).lte('paye_at',end.toISOString());
+    let items:any[]=[];
+    if(cmds && cmds.length){
+      const ids=cmds.map((c:any)=>c.id);
+      const {data}=await supabase.from('commande_items').select('*').in('commande_id',ids);
+      items=data||[];
+    } else {
+      const {data:cmds2}=await supabase.from('commandes').select('id').eq('statut','paye').gte('created_at',start.toISOString()).lte('created_at',end.toISOString());
+      if(cmds2 && cmds2.length){
+        const ids=cmds2.map((c:any)=>c.id);
+        const {data}=await supabase.from('commande_items').select('*').in('commande_id',ids);
+        items=data||[];
+      }
+    }
+    setCommandeItems(items);
+  },[date]);
+
+  useEffect(()=>{load();},[load]);
+
+  const getDetails = (matiereId:string)=>{
+    const recs = recettes.filter((r:any)=>r.matiere_id===matiereId);
+    return recs.map((rec:any)=>{
+      const menu = menus.find((m:any)=>m.id===rec.menu_id);
+      if(!menu) return null;
+      const ventes = commandeItems.filter((ci:any)=> (ci.menu_id===menu.id) || (ci.menu_nom===menu.nom) || (ci.nom===menu.nom));
+      const qteVendue = ventes.reduce((s:any, v:any)=> s + Number(v.qte||1), 0);
+      const consoTotale = qteVendue * Number(rec.qte_necessaire||0);
+      return {
+        menu_nom: menu.nom,
+        menu_prix: menu.prix,
+        qte_necessaire: rec.qte_necessaire,
+        unite: rec.unite||'g',
+        qteVendue,
+        consoTotale
+      };
+    }).filter(Boolean);
+  };
+
+  const selectedDetails = selected ? getDetails(selected.id) : [];
+  const totalConsoSelected = selectedDetails.reduce((s:any,d:any)=> s + d.consoTotale, 0);
+  const totalPlatsSelected = selectedDetails.reduce((s:any,d:any)=> s + d.qteVendue, 0);
+
+  return <div>
+    <div className="flex justify-between mb-3 items-center">
+      <h2 className="font-black text-lg">Matiere {mats.length}</h2>
+      <div className="flex gap-2">
+        <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="bg-zinc-900 border border-zinc-700 rounded-xl px-2 py-2 text-xs"/>
+        <button onClick={()=>{setEdit(null);setShow(true);}} className="bg-orange-600 px-3 py-2 rounded-xl text-sm font-bold">+ Matiere</button>
+      </div>
+    </div>
+
+    <div className="bg-zinc-900 rounded-xl p-3 mb-4 border border-zinc-800 text-xs">
+      <div className="font-bold text-orange-400 mb-1">👉 Warak 3la ay matiere tchouf les repas li tkalo manha</div>
+      <div className="text-zinc-400">Kay7sab lik ch7al tba3 w ch7al tkal manha f nhar li khtarti.</div>
+    </div>
+
+    <div className="grid gap-2">
+      {mats.map((m:any)=>{
+        const details = getDetails(m.id);
+        const totalConso = details.reduce((s:any,d:any)=> s + d.consoTotale, 0);
+        const totalVentes = details.reduce((s:any,d:any)=> s + d.qteVendue, 0);
+        const nbPlats = details.length;
+        return (
+          <div key={m.id} onClick={()=>setSelected(m)} className={`bg-zinc-900 p-4 rounded-xl border-2 cursor-pointer ${selected?.id===m.id?'border-orange-500':'border-zinc-800'}`}>
+            <div className="flex justify-between">
+              <div>
+                <div className="font-black text-white flex items-center gap-2">{m.nom} <span className="text-[10px] bg-zinc-800 px-2 py-1 rounded-full">{m.quantite} {m.unite}</span></div>
+                <div className="text-xs text-zinc-400 mt-1">{nbPlats} plats kayst3amloha • {totalVentes} plats tba3o lyum • <span className="text-orange-400 font-bold">{totalConso.toFixed(0)} {details[0]?.unite||m.unite} tkalo</span></div>
+                <div className="text-[11px] text-zinc-500 mt-1">{details.slice(0,3).map((d:any)=>d.menu_nom).join(', ')}{details.length>3?` +${details.length-3}`:''}</div>
+              </div>
+              <div className="flex gap-1 items-start">
+                <button onClick={(e)=>{e.stopPropagation(); setEdit(m);setShow(true);}} className="p-2 bg-zinc-800 rounded-lg"><Edit3 className="w-4 h-4"/></button>
+                <button onClick={async(e)=>{e.stopPropagation(); if(confirm('Supprimer?')){await supabase.from('matiere_premiere').delete().eq('id',m.id);load();}}} className="p-2 bg-red-900 rounded-lg"><Trash2 className="w-4 h-4"/></button>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+
+    {selected && (
+      <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4">
+        <div className="bg-zinc-900 rounded-2xl w-full max-w-lg border-2 border-orange-500 max-h-[85vh] overflow-auto">
+          <div className="p-4 border-b border-zinc-800 flex justify-between sticky top-0 bg-zinc-900">
+            <div>
+              <h3 className="font-black text-lg">{selected.nom}</h3>
+              <div className="text-xs text-zinc-400">Stock: {selected.quantite} {selected.unite} • {selectedDetails.length} repas kayst3amloha</div>
+            </div>
+            <button onClick={()=>setSelected(null)}><X className="w-6 h-6"/></button>
+          </div>
+          
+          <div className="p-4 space-y-3">
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="bg-black rounded-xl p-3 border border-zinc-800"><div className="text-[10px] text-zinc-500">PLATS</div><div className="font-black text-xl">{selectedDetails.length}</div></div>
+              <div className="bg-black rounded-xl p-3 border border-green-800"><div className="text-[10px] text-green-400">TBA3O</div><div className="font-black text-xl text-green-400">{totalPlatsSelected}</div></div>
+              <div className="bg-black rounded-xl p-3 border border-orange-800"><div className="text-[10px] text-orange-400">TKAL</div><div className="font-black text-xl text-orange-400">{totalConsoSelected.toFixed(0)} {selected.unite}</div></div>
+            </div>
+
+            <h4 className="font-black text-sm mt-2">Les repas li tkalo man {selected.nom} - {date}:</h4>
+            {selectedDetails.length===0 && <div className="text-sm text-zinc-500 p-4 text-center">Hta plat ma kayst3amal had matiere</div>}
+            {selectedDetails.map((d:any,i:any)=>(
+              <div key={i} className="bg-black rounded-xl p-3 border border-zinc-800">
+                <div className="flex justify-between">
+                  <div className="font-bold">{d.menu_nom} - {d.menu_prix} DH</div>
+                  <span className={`text-xs px-2 py-1 rounded-full font-bold ${d.qteVendue>0?'bg-green-600':'bg-zinc-700'}`}>{d.qteVendue} x</span>
+                </div>
+                <div className="text-xs text-zinc-400 mt-1 flex justify-between">
+                  <span>Recette: {d.qte_necessaire} {d.unite}/plat</span>
+                  <span className="font-bold text-orange-400">{d.consoTotale.toFixed(0)} {d.unite} tkalo</span>
+                </div>
+              </div>
+            ))}
+
+            <div className="bg-orange-950/30 border border-orange-700 rounded-xl p-3 mt-4">
+              <div className="text-sm text-white">Matière <b>{selected.nom}</b> kayst3amloha <b>{selectedDetails.length} plats</b> - Lyum tba3o <b>{totalPlatsSelected} plats</b>, tkala manha <b>{totalConsoSelected.toFixed(0)} {selected.unite}</b></div>
+              <div className="text-xs text-zinc-400 mt-2">Stock {selected.quantite} {selected.unite} → B9a {(Number(selected.quantite)-totalConsoSelected).toFixed(0)} {selected.unite}</div>
+            </div>
+
+            <button onClick={()=>setSelected(null)} className="w-full bg-white text-black py-3 rounded-xl font-black mt-2">Sedd</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {show&&<MatiereForm mat={edit} onClose={()=>{setShow(false);setEdit(null);}} onSaved={load}/>}
+  </div>
+}
+
+function MatiereForm({mat,onClose,onSaved}:any){
+  const [nom,setNom]=useState(mat?.nom||'');
+  const [qte,setQte]=useState(mat?String(mat.quantite):'10');
+  const [unite,setUnite]=useState(mat?.unite||'kg');
+  const save=async()=>{
+    const p={nom,quantite:parseFloat(qte)||0,unite,seuil_alerte:2};
+    if(mat) await supabase.from('matiere_premiere').update(p).eq('id',mat.id);
+    else await supabase.from('matiere_premiere').insert(p);
+    onSaved(); onClose();
+  };
+  return <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"><div className="bg-zinc-900 rounded-2xl w-full max-w-md border border-zinc-800 p-5 space-y-3"><input value={nom} onChange={e=>setNom(e.target.value)} placeholder="Nom matiere" className="w-full bg-black p-3 rounded-xl border border-zinc-700"/><div className="flex gap-2"><input value={qte} onChange={e=>setQte(e.target.value)} type="number" className="flex-1 bg-black p-3 rounded-xl border border-zinc-700"/><select value={unite} onChange={e=>setUnite(e.target.value)} className="w-24 bg-black p-3 rounded-xl border border-zinc-700"><option>kg</option><option>g</option><option>L</option><option>ml</option><option>pcs</option></select></div><div className="flex gap-2"><button onClick={onClose} className="flex-1 bg-zinc-800 py-3 rounded-xl">Annuler</button><button onClick={save} className="flex-1 bg-orange-600 py-3 rounded-xl font-bold">Sauver</button></div></div></div>
+}
+
 function StockTab(){const [mats,setMats]=useState<any[]>([]);useEffect(()=>{supabase.from('matiere_premiere').select('*').order('nom').then(({data})=>setMats(data||[]));},[]);return <div>{mats.map((m:any)=><div key={m.id} className="p-3 rounded-xl border bg-zinc-900 border-zinc-800 flex justify-between mb-2"><span>{m.nom}</span><span className="font-bold">{m.quantite} {m.unite}</span></div>)}</div>}
 function CategoriesTab(){const [cats,setCats]=useState<any[]>([]);const [show,setShow]=useState(false);const [edit,setEdit]=useState<any>(null);const load=useCallback(async()=>{const {data}=await supabase.from('categories').select('*').order('ordre');setCats(data||[]);},[]);useEffect(()=>{load();},[load]);return <div><div className="flex justify-between mb-2"><h2 className="font-bold">Categories</h2><button onClick={()=>{setEdit(null);setShow(true);}} className="bg-orange-600 px-3 py-2 rounded-xl">+ Cat</button></div>{cats.map((c:any)=><div key={c.id} className="bg-zinc-900 p-3 rounded-xl border border-zinc-800 flex justify-between mb-2"><div><div className="font-bold">{c.label}</div><div className="text-xs text-zinc-500">{c.nom}</div></div><div className="flex gap-1"><button onClick={()=>{setEdit(c);setShow(true);}} className="p-2 bg-zinc-800 rounded-lg"><Edit3 className="w-4 h-4"/></button><button onClick={async()=>{if(confirm('Supprimer?')){await supabase.from('categories').delete().eq('id',c.id);load();}}} className="p-2 bg-red-900 rounded-lg"><Trash2 className="w-4 h-4"/></button></div></div>)}{show&&<CatForm cat={edit} onClose={()=>{setShow(false);setEdit(null);}} onSaved={load}/>}</div>}
 function CatForm({cat,onClose,onSaved}:any){const [nom,setNom]=useState(cat?.nom||'');const [label,setLabel]=useState(cat?.label||'');const save=async()=>{if(!nom||!label) return alert('Nom+Label');const p={nom:nom.toLowerCase().replace(/\s/g,'_'),label,ordre:1};if(cat) await supabase.from('categories').update(p).eq('id',cat.id);else await supabase.from('categories').insert(p);onSaved();onClose();};return <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"><div className="bg-zinc-900 rounded-2xl w-full max-w-md border border-zinc-800 p-5 space-y-3"><input value={label} onChange={e=>{setLabel(e.target.value);if(!cat) setNom(e.target.value.toLowerCase().replace(/\s/g,'_'));}} placeholder="Label" className="w-full bg-black p-3 rounded-xl border border-zinc-700"/><input value={nom} onChange={e=>setNom(e.target.value)} placeholder="nom" className="w-full bg-black p-3 rounded-xl border border-zinc-700 text-xs"/><div className="flex gap-2"><button onClick={onClose} className="flex-1 bg-zinc-800 py-3 rounded-xl">Annuler</button><button onClick={save} className="flex-1 bg-orange-600 py-3 rounded-xl font-bold">Sauver</button></div></div></div>}
 function UsersTab(){const [users,setUsers]=useState<any[]>([]);const [show,setShow]=useState(false);const [edit,setEdit]=useState<any>(null);const load=useCallback(async()=>{const {data}=await supabase.from('utilisateurs').select('*').order('created_at',{ascending:false});setUsers(data||[]);},[]);useEffect(()=>{load();},[load]);return <div><div className="flex justify-between mb-3"><h2 className="font-bold">Users {users.length}</h2><button onClick={()=>{setEdit(null);setShow(true);}} className="bg-orange-600 px-4 py-2 rounded-xl font-bold">+ User</button></div>{users.map((u:any)=><div key={u.id} className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 flex justify-between mb-2"><div><div className="font-bold">{u.nom} <span className="text-xs bg-zinc-800 px-2 py-1 rounded-lg ml-2">{u.role}</span></div><div className="text-xs text-zinc-500">ID: {u.identifiant} | {u.code_acces}</div></div><div className="flex gap-1"><button onClick={()=>{setEdit(u);setShow(true);}} className="p-2.5 bg-zinc-800 rounded-xl"><Edit3 className="w-4 h-4"/></button><button onClick={async()=>{if(confirm('Supprimer?')){await supabase.from('utilisateurs').delete().eq('id',u.id);load();}}} className="p-2.5 bg-red-900 rounded-xl"><Trash2 className="w-4 h-4"/></button></div></div>)}{show&&<UserForm user={edit} onClose={()=>{setShow(false);setEdit(null);}} onSaved={load}/>}</div>}
 function UserForm({user,onClose,onSaved}:any){const [nom,setNom]=useState(user?.nom||'');const [ident,setIdent]=useState(user?.identifiant||'');const [code,setCode]=useState(user?.code_acces||'');const [role,setRole]=useState(user?.role||'serveur');const save=async()=>{ if(!nom||!ident||!code) return alert('3amar'); const payload:any={ nom, identifiant: ident.trim(), code_acces: code.trim(), role }; let error; if(user){ const res=await supabase.from('utilisateurs').update(payload).eq('id',user.id); error=res.error; } else { const res=await supabase.from('utilisateurs').insert(payload); error=res.error; } if(error){ alert(error.message); return; } onSaved(); onClose(); };return <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"><div className="bg-zinc-900 rounded-2xl w-full max-w-md border border-zinc-800 p-5 space-y-3"><div className="flex justify-between"><h3 className="font-bold">{user?'Modifier':'Nouveau'} User</h3><button onClick={onClose}><X className="w-5 h-5"/></button></div><input value={nom} onChange={e=>setNom(e.target.value)} placeholder="Nom" className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"/><input value={ident} onChange={e=>setIdent(e.target.value)} placeholder="Identifiant" className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"/><input value={code} onChange={e=>setCode(e.target.value)} placeholder="Code" className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"/><select value={role} onChange={e=>setRole(e.target.value)} className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"><option value="admin">admin</option><option value="serveur">serveur</option><option value="cuisine">cuisine</option><option value="caisse">caisse</option></select><div className="flex gap-2"><button onClick={onClose} className="flex-1 bg-zinc-800 py-3.5 rounded-xl">Annuler</button><button onClick={save} className="flex-1 bg-orange-600 py-3.5 rounded-xl font-bold">Sauver</button></div></div></div>}
 
-// ===== RAPPORT COMPLET - ACHNO KAYW9A3 F RESTAURANT =====
 function RapportsTab(){
   const [date,setDate]=useState(new Date().toISOString().split('T')[0]);
   const [cmds,setCmds]=useState<any[]>([]);
@@ -95,18 +254,15 @@ function RapportsTab(){
     setLoading(true);
     const start=new Date(date); start.setHours(0,0,0,0);
     const end=new Date(date); end.setHours(23,59,59,999);
-    
     let {data}=await supabase.from('commandes').select('*').eq('statut','paye').gte('paye_at',start.toISOString()).lte('paye_at',end.toISOString()).order('paye_at',{ascending:true});
     if(!data||data.length===0){
       const {data:d2}=await supabase.from('commandes').select('*').eq('statut','paye').gte('created_at',start.toISOString()).lte('created_at',end.toISOString()).order('created_at',{ascending:true});
       data=d2||[];
     }
     let {data:annuleData}=await supabase.from('commandes').select('*').in('statut',['annule','annulee']).gte('created_at',start.toISOString()).lte('created_at',end.toISOString()).order('created_at',{ascending:true});
-    
     let iMap:any={}; let aMap:any={}; let tMap:any={};
     const allIds=[...(data||[]).map((c:any)=>c.id), ...(annuleData||[]).map((c:any)=>c.id)];
     const tableIds=[...(data||[]).map((c:any)=>c.table_id), ...(annuleData||[]).map((c:any)=>c.table_id)].filter(Boolean);
-    
     if(allIds.length){
       const [itemsRes,tablesRes]=await Promise.all([
         supabase.from('commande_items').select('*').in('commande_id',allIds),
@@ -120,17 +276,12 @@ function RapportsTab(){
     }
     setItemsMap(iMap); setAnnuleItemsMap(aMap); setTableMap(tMap); setCmds(data||[]); setAnnules(annuleData||[]); setLoading(false);
   },[date]);
-
   useEffect(()=>{ load(); },[load]);
-
   const getTableLabel=(c:any)=>{ const t=tableMap[c.table_id]; if(t) return `T${t.numero} ${t.etage}`; if(c.table_numero) return `T${c.table_numero}`; return 'Table?'; };
   const getEtage=(c:any)=>{ const t=tableMap[c.table_id]; return t?.etage||'Inconnu'; };
-
-  // === CALCULS ===
   const stats=(()=>{
     let espece=0,tpe=0,cheque=0,offertReel=0,remiseEncaisse=0,remisePerte=0,totalReel=0,totalEncaisse=0,totalItems=0;
     let byHour:any={}; let byPlat:any={}; let byServeur:any={}; let byEtage:any={};
-    
     cmds.forEach((c:any)=>{
       const hour=new Date(c.paye_at||c.created_at).getHours();
       byHour[hour]=(byHour[hour]||0)+Number(c.total_final??c.total??0);
@@ -140,7 +291,6 @@ function RapportsTab(){
       const etage=getEtage(c);
       byEtage[etage]=(byEtage[etage]||0)+Number(c.total_final??c.total??0);
       byEtage[etage+'_count']=(byEtage[etage+'_count']||0)+1;
-      
       const method=(c.payment_method||'').toLowerCase();
       const its=itemsMap[c.id]||[];
       totalItems+=its.length;
@@ -149,7 +299,6 @@ function RapportsTab(){
         byPlat[key]=(byPlat[key]||0)+Number(it.qte||1);
         byPlat[key+'_ca']=(byPlat[key+'_ca']||0)+Number(it.qte||1)*Number(it.prix||0);
       });
-      
       if(method==='mixte'){
         its.forEach((it:any)=>{
           const m=(it.payment_method||'espece').toLowerCase();
@@ -161,7 +310,7 @@ function RapportsTab(){
           else if(m==='tpe'){ tpe+=finalP; totalEncaisse+=finalP; }
           else if(m==='cheque'){ cheque+=finalP; totalEncaisse+=finalP; }
           else if(m==='offert'){ offertReel+=prix; }
-          else if(m==='remise'){ remiseEncaisse+=finalP; remisePerte+=prix-finalP; totalEncaisse+=finalP; totalReel+=0; }
+          else if(m==='remise'){ remiseEncaisse+=finalP; remisePerte+=prix-finalP; totalEncaisse+=finalP; }
         });
       }else{
         const tot=Number(c.total_final??c.total??0);
@@ -177,52 +326,42 @@ function RapportsTab(){
     });
     return {espece,tpe,cheque,offertReel,remiseEncaisse,remisePerte,totalReel,totalEncaisse,totalItems,byHour,byPlat,byServeur,byEtage};
   })();
-
   const totalsAnnule=annules.reduce((s:any,c:any)=>{
     const its=annuleItemsMap[c.id]||[];
     const t=its.length? its.reduce((a:any,i:any)=>a+Number(i.qte||1)*Number(i.prix||0),0) : Number(c.total||0);
     return s+t;
   },0);
-
   const topPlats=Object.keys(stats.byPlat).filter(k=>!k.endsWith('_ca')).sort((a,b)=>stats.byPlat[b]-stats.byPlat[a]).slice(0,10);
   const topServeurs=Object.keys(stats.byServeur).filter(k=>!k.endsWith('_count')).sort((a,b)=>stats.byServeur[b]-stats.byServeur[a]);
   const topEtages=Object.keys(stats.byEtage).filter(k=>!k.endsWith('_count'));
   const hoursSorted=Object.keys(stats.byHour).sort((a,b)=>Number(a)-Number(b));
-
   if(loading) return <div className="p-8 text-center">Chargement...</div>;
-
   return <div className="space-y-4">
     <div className="flex gap-2">
       <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-3 font-bold"/>
       <button onClick={load} className="bg-orange-600 px-4 rounded-xl font-black">Refresh</button>
     </div>
-    
-    {/* RESUME PRINCIPAL */}
     <div className="bg-gradient-to-br from-zinc-900 to-black rounded-2xl p-4 border-2 border-orange-500/30">
       <div className="flex justify-between items-center mb-3">
         <h2 className="font-black text-lg flex items-center gap-2"><BarChart3 className="w-5 h-5 text-orange-500"/> RAPPORT {date}</h2>
-        <span className="text-xs bg-zinc-800 px-2 py-1 rounded-full">{cmds.length} commandes payées</span>
+        <span className="text-xs bg-zinc-800 px-2 py-1 rounded-full">{cmds.length} commandes</span>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-black rounded-xl p-3 border border-green-800"><div className="text-[10px] text-zinc-400">CA ENCAISSÉ</div><div className="font-black text-2xl text-green-400">{stats.totalEncaisse.toFixed(0)} DH</div><div className="text-[10px] text-zinc-500">{cmds.length} tickets • {stats.totalItems} plats • Panier {(cmds.length?stats.totalEncaisse/cmds.length:0).toFixed(0)} DH</div></div>
+        <div className="bg-black rounded-xl p-3 border border-green-800"><div className="text-[10px] text-zinc-400">CA ENCAISSÉ</div><div className="font-black text-2xl text-green-400">{stats.totalEncaisse.toFixed(0)} DH</div><div className="text-[10px] text-zinc-500">{cmds.length} tickets • {stats.totalItems} plats</div></div>
         <div className="bg-black rounded-xl p-3 border border-zinc-700"><div className="text-[10px] text-zinc-400">CA RÉEL</div><div className="font-black text-xl text-white">{stats.totalReel.toFixed(0)} DH</div><div className="text-[10px] text-orange-400">Perte: {(stats.offertReel+stats.remisePerte).toFixed(0)} DH</div></div>
       </div>
     </div>
-
-    {/* PAIEMENT */}
     <div className="grid grid-cols-3 gap-2">
-      <div className="bg-green-950/40 border border-green-700 rounded-xl p-3 text-center"><div className="text-[10px] text-green-300">ESPECE</div><div className="font-black text-green-400">{stats.espece.toFixed(0)}</div><div className="text-[9px] text-zinc-400">{stats.totalEncaisse?((stats.espece/stats.totalEncaisse)*100).toFixed(0):0}%</div></div>
-      <div className="bg-blue-950/40 border border-blue-700 rounded-xl p-3 text-center"><div className="text-[10px] text-blue-300">TPE</div><div className="font-black text-blue-400">{stats.tpe.toFixed(0)}</div><div className="text-[9px] text-zinc-400">{stats.totalEncaisse?((stats.tpe/stats.totalEncaisse)*100).toFixed(0):0}%</div></div>
-      <div className="bg-purple-950/40 border border-purple-700 rounded-xl p-3 text-center"><div className="text-[10px] text-purple-300">CHEQUE</div><div className="font-black text-purple-400">{stats.cheque.toFixed(0)}</div><div className="text-[9px] text-zinc-400">{stats.totalEncaisse?((stats.cheque/stats.totalEncaisse)*100).toFixed(0):0}%</div></div>
+      <div className="bg-green-950/40 border border-green-700 rounded-xl p-3 text-center"><div className="text-[10px] text-green-300">ESPECE</div><div className="font-black text-green-400">{stats.espece.toFixed(0)}</div></div>
+      <div className="bg-blue-950/40 border border-blue-700 rounded-xl p-3 text-center"><div className="text-[10px] text-blue-300">TPE</div><div className="font-black text-blue-400">{stats.tpe.toFixed(0)}</div></div>
+      <div className="bg-purple-950/40 border border-purple-700 rounded-xl p-3 text-center"><div className="text-[10px] text-purple-300">CHEQUE</div><div className="font-black text-purple-400">{stats.cheque.toFixed(0)}</div></div>
       <div className="bg-yellow-950/40 border border-yellow-600 rounded-xl p-3 text-center"><div className="text-[10px] text-yellow-300">REMISE</div><div className="font-black text-yellow-400">{stats.remiseEncaisse.toFixed(0)}</div><div className="text-[9px] text-red-400">Perte {stats.remisePerte.toFixed(0)}</div></div>
-      <div className="bg-orange-950/40 border border-orange-700 rounded-xl p-3 text-center"><div className="text-[10px] text-orange-300">OFFERT</div><div className="font-black text-orange-400">{stats.offertReel.toFixed(0)}</div><div className="text-[9px] text-zinc-400">{cmds.filter((c:any)=>c.payment_method==='offert').length} tickets</div></div>
+      <div className="bg-orange-950/40 border border-orange-700 rounded-xl p-3 text-center"><div className="text-[10px] text-orange-300">OFFERT</div><div className="font-black text-orange-400">{stats.offertReel.toFixed(0)}</div></div>
       <div className="bg-red-950/50 border-2 border-red-600 rounded-xl p-3 text-center"><div className="text-[10px] text-red-300 font-black">ANNULE</div><div className="font-black text-red-400">{totalsAnnule.toFixed(0)}</div><div className="text-[9px] text-red-300">{annules.length} cmds</div></div>
     </div>
-
-    {/* PAR HEURE */}
     {hoursSorted.length>0 && (
       <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800">
-        <h3 className="font-black mb-3 flex items-center gap-2"><Clock className="w-4 h-4 text-orange-500"/> PAR HEURE - PIC D'AFFLUENCE</h3>
+        <h3 className="font-black mb-3 flex items-center gap-2"><Clock className="w-4 h-4 text-orange-500"/> PAR HEURE</h3>
         <div className="space-y-2">
           {hoursSorted.map((h:any)=>{
             const max=Math.max(...Object.values(stats.byHour) as any);
@@ -233,14 +372,11 @@ function RapportsTab(){
         </div>
       </div>
     )}
-
-    {/* TOP PLATS */}
     {topPlats.length>0 && (
       <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800">
-        <h3 className="font-black mb-3 flex items-center gap-2"><Utensils className="w-4 h-4 text-green-500"/> TOP 10 PLATS VENDUS</h3>
+        <h3 className="font-black mb-3 flex items-center gap-2"><Utensils className="w-4 h-4 text-green-500"/> TOP 10 PLATS</h3>
         <div className="space-y-2">
           {topPlats.map((plat:any,i:any)=>{
-            const max=stats.byPlat[topPlats[0]]||1;
             const qte=stats.byPlat[plat];
             const ca=stats.byPlat[plat+'_ca']||0;
             return <div key={plat} className="flex justify-between items-center bg-black rounded-xl p-2.5 border border-zinc-800"><div className="flex items-center gap-2"><span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${i===0?'bg-yellow-500 text-black':i===1?'bg-zinc-400 text-black':i===2?'bg-orange-600 text-white':'bg-zinc-800'}`}>{i+1}</span><span className="font-bold text-sm">{plat}</span></div><div className="text-right"><div className="font-black text-white">{qte}x</div><div className="text-[10px] text-zinc-400">{ca.toFixed(0)} DH</div></div></div>
@@ -248,67 +384,36 @@ function RapportsTab(){
         </div>
       </div>
     )}
-
-    {/* PAR SERVEUR + PAR ETAGE */}
     <div className="grid grid-cols-2 gap-3">
       <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800">
         <h3 className="font-black mb-3 flex items-center gap-2 text-sm"><Users className="w-4 h-4 text-blue-500"/> PAR SERVEUR</h3>
         {topServeurs.map((s:any)=><div key={s} className="flex justify-between py-1.5 border-b border-zinc-800 last:border-0"><div><div className="font-bold text-sm">{s}</div><div className="text-[10px] text-zinc-500">{stats.byServeur[s+'_count']} cmds</div></div><div className="font-black text-sm">{stats.byServeur[s].toFixed(0)} DH</div></div>)}
-        {topServeurs.length===0 && <div className="text-xs text-zinc-500">Aucun serveur</div>}
       </div>
       <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800">
         <h3 className="font-black mb-3 flex items-center gap-2 text-sm"><MapPin className="w-4 h-4 text-purple-500"/> PAR ÉTAGE</h3>
         {topEtages.map((e:any)=><div key={e} className="flex justify-between py-1.5 border-b border-zinc-800 last:border-0"><div><div className="font-bold text-sm">{e}</div><div className="text-[10px] text-zinc-500">{stats.byEtage[e+'_count']} cmds</div></div><div className="font-black text-sm">{stats.byEtage[e].toFixed(0)} DH</div></div>)}
-        {topEtages.length===0 && <div className="text-xs text-zinc-500">Aucun étage</div>}
       </div>
     </div>
-
-    {/* ALERTES */}
     {(stats.offertReel>0 || totalsAnnule>0 || stats.remisePerte>0) && (
       <div className="bg-red-950/20 border-2 border-red-800 rounded-2xl p-4">
-        <h3 className="font-black text-red-400 mb-2 flex items-center gap-2"><AlertTriangle className="w-4 h-4"/> PERTES & ALERTES</h3>
+        <h3 className="font-black text-red-400 mb-2 flex items-center gap-2"><AlertTriangle className="w-4 h-4"/> PERTES</h3>
         <div className="grid grid-cols-3 gap-2 text-center">
           <div><div className="text-[10px] text-orange-300">OFFERT</div><div className="font-black text-orange-400">{stats.offertReel.toFixed(0)} DH</div></div>
-          <div><div className="text-[10px] text-yellow-300">REMISE PERTE</div><div className="font-black text-yellow-400">{stats.remisePerte.toFixed(0)} DH</div></div>
+          <div><div className="text-[10px] text-yellow-300">REMISE</div><div className="font-black text-yellow-400">{stats.remisePerte.toFixed(0)} DH</div></div>
           <div><div className="text-[10px] text-red-300">ANNULE</div><div className="font-black text-red-400">{totalsAnnule.toFixed(0)} DH</div></div>
         </div>
-        <div className="mt-3 bg-black rounded-xl p-3 text-center"><div className="text-xs text-zinc-400">TOTAL PERTE JOURNÉE</div><div className="font-black text-xl text-red-400">{(stats.offertReel+stats.remisePerte+totalsAnnule).toFixed(0)} DH</div><div className="text-[10px] text-zinc-500">Sur un CA réel de {stats.totalReel.toFixed(0)} DH = {stats.totalReel?(((stats.offertReel+stats.remisePerte+totalsAnnule)/stats.totalReel)*100).toFixed(1):0}% de perte</div></div>
+        <div className="mt-3 bg-black rounded-xl p-3 text-center"><div className="text-xs text-zinc-400">TOTAL PERTE</div><div className="font-black text-xl text-red-400">{(stats.offertReel+stats.remisePerte+totalsAnnule).toFixed(0)} DH</div></div>
       </div>
     )}
-
-    {/* LISTE ANNULEES */}
-    {annules.length>0 && (
-      <div>
-        <h3 className="font-black text-red-400 mb-2">🚫 ANNULÉES ({annules.length}) - {totalsAnnule.toFixed(0)} DH DE PERTE</h3>
-        {annules.map((c:any)=>{
-          const its=annuleItemsMap[c.id]||[];
-          const totalCmd=its.length? its.reduce((s:any,i:any)=>s+Number(i.qte||1)*Number(i.prix||0),0) : Number(c.total||0);
-          return (
-            <div key={c.id} className="bg-red-950/20 border border-red-800 rounded-xl p-3 mb-2">
-              <div className="flex justify-between items-center mb-2">
-                <div className="flex items-center gap-2"><span className="font-black">{getTableLabel(c)}</span><span className="text-xs text-zinc-400">{c.serveur_nom}</span><span className="text-[10px] text-zinc-500">{new Date(c.created_at).toLocaleTimeString()}</span></div>
-                <span className="font-black text-red-400">{totalCmd.toFixed(0)} DH</span>
-              </div>
-              <div className="bg-black/60 rounded-lg p-2 space-y-1">
-                {its.map((it:any)=><div key={it.id} className="flex justify-between text-sm"><span className="text-zinc-300">{it.qte}x {it.menu_nom||it.nom}</span><span className="text-zinc-500">{(Number(it.qte)*Number(it.prix)).toFixed(0)} DH</span></div>)}
-                {its.length===0 && <div className="text-xs text-zinc-500">Commande annulée</div>}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    )}
-
-    {/* LISTE PAYEES DETAILLEE */}
-    <h3 className="font-black text-green-400">✅ PAYÉES DETAILLEES ({cmds.length})</h3>
+    <h3 className="font-black text-green-400">✅ PAYÉES ({cmds.length})</h3>
     {cmds.map((c:any)=>{
       const its=itemsMap[c.id]||[];
       return (
         <div key={c.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 mb-3">
           <div className="flex justify-between items-center mb-2">
-            <div className="flex items-center gap-2"><span className="font-black text-white">{getTableLabel(c)}</span><span className="text-xs bg-zinc-800 px-2 py-1 rounded-full">{getEtage(c)}</span><span className="text-xs text-zinc-400">{c.serveur_nom}</span><span className="text-[10px] text-zinc-500">{new Date(c.paye_at||c.created_at).toLocaleTimeString()}</span></div>
+            <div className="flex items-center gap-2"><span className="font-black text-white">{getTableLabel(c)}</span><span className="text-xs bg-zinc-800 px-2 py-1 rounded-full">{getEtage(c)}</span><span className="text-xs text-zinc-400">{c.serveur_nom}</span></div>
             <div className="flex items-center gap-2">
-              <span className={`px-2 py-1 rounded-full text-[10px] font-black ${c.payment_method==='espece'?'bg-green-600':c.payment_method==='tpe'?'bg-blue-600':c.payment_method==='cheque'?'bg-purple-600':c.payment_method==='offert'?'bg-orange-600':c.payment_method==='remise'?'bg-yellow-500 text-black':'bg-white text-black'}`}>{c.payment_method?.toUpperCase()} {c.remise_percent?`-${c.remise_percent}%`:''}</span>
+              <span className={`px-2 py-1 rounded-full text-[10px] font-black ${c.payment_method==='espece'?'bg-green-600':c.payment_method==='tpe'?'bg-blue-600':c.payment_method==='cheque'?'bg-purple-600':c.payment_method==='offert'?'bg-orange-600':c.payment_method==='remise'?'bg-yellow-500 text-black':'bg-white text-black'}`}>{c.payment_method?.toUpperCase()}</span>
               <span className="font-black text-orange-400">{Number(c.total_final??c.total??0).toFixed(0)} DH</span>
             </div>
           </div>
@@ -318,7 +423,7 @@ function RapportsTab(){
               const m=(it.payment_method||'').toLowerCase();
               const perc=Number(it.remise_percent||0);
               const finalP=m==='offert'?0:m==='remise'?prix-prix*perc/100:prix;
-              return <div key={it.id} className="flex justify-between text-sm py-1 border-b border-zinc-800/50 last:border-0"><span className="text-white">{it.qte}x {it.menu_nom||it.nom} {m!=='espece' && <span className="text-[9px] bg-zinc-800 px-1 rounded ml-1">{m.toUpperCase()} {perc?`-${perc}%`:''}</span>}</span><span className="text-zinc-400">{c.payment_method==='mixte'?`${finalP.toFixed(0)}`:`${prix.toFixed(0)}`} DH</span></div>
+              return <div key={it.id} className="flex justify-between text-sm py-1 border-b border-zinc-800/50 last:border-0"><span className="text-white">{it.qte}x {it.menu_nom||it.nom}</span><span className="text-zinc-400">{c.payment_method==='mixte'?`${finalP.toFixed(0)}`:`${prix.toFixed(0)}`} DH</span></div>
             })}
           </div>
         </div>
