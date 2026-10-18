@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { ArrowLeft, Plus, Minus, Send, Image as ImageIcon, LogOut, MessageSquare, ChefHat, MapPin } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, Send, Image as ImageIcon, LogOut, MessageSquare } from 'lucide-react';
 
 export default function Serveur({ profil, onLogout, serveurNom }: any) {
   const name = profil?.user?.nom || serveurNom || 'Serveur';
@@ -41,13 +41,12 @@ function TablesView({ onSelectTable, profil, onLogout }: any) {
   const glovo = tables.filter((t:any)=>t.etage==='GLOVO');
 
   const etages = [
-    { id: 'RDC', label: 'RDC', count: rdc.length, color: 'bg-green-600', icon: '🏠', desc: 'Rez-de-chaussée' },
-    { id: '1er', label: '1er ÉTAGE', count: premier.length, color: 'bg-blue-600', icon: '🏢', desc: 'Premier étage' },
-    { id: 'Emporte', label: 'EMPORTE', count: emporte.length, color: 'bg-orange-600', icon: '🥡', desc: 'À emporter' },
-    { id: 'GLOVO', label: 'GLOVO 💰', count: glovo.length, color: 'bg-yellow-500', icon: '🛵', desc: 'Prix majorés +30%' },
+    { id: 'RDC', label: 'RDC', count: rdc.length, icon: '🏠', desc: 'Rez-de-chaussée' },
+    { id: '1er', label: '1er ÉTAGE', count: premier.length, icon: '🏢', desc: 'Premier étage' },
+    { id: 'Emporte', label: 'EMPORTE', count: emporte.length, icon: '🥡', desc: 'À emporter' },
+    { id: 'GLOVO', label: 'GLOVO 💰', count: glovo.length, icon: '🛵', desc: 'Prix majorés +30%' },
   ];
 
-  // ETAPE 1: Choisir Etage
   if (!selectedEtage) {
     return (
       <div className="min-h-screen bg-black text-white">
@@ -58,32 +57,21 @@ function TablesView({ onSelectTable, profil, onLogout }: any) {
         <div className="p-4 max-w-4xl mx-auto">
           <h2 className="text-2xl font-black text-white mb-2 text-center">Choisir Zone</h2>
           <p className="text-zinc-500 text-center text-sm mb-6">Fin ghadi tkhdam daba?</p>
-          
           <div className="grid grid-cols-2 gap-4">
             {etages.map((etage) => (
-              <button
-                key={etage.id}
-                onClick={() => setSelectedEtage(etage.id)}
-                className={`${etage.id==='GLOVO'?'bg-gradient-to-br from-yellow-400 to-amber-500 text-black':'bg-[#1A1A1A] border border-zinc-800 text-white'} rounded-[24px] p-6 aspect-square flex flex-col items-center justify-center relative overflow-hidden active:scale-95 transition-all`}
-              >
+              <button key={etage.id} onClick={() => setSelectedEtage(etage.id)} className={`${etage.id==='GLOVO'?'bg-gradient-to-br from-yellow-400 to-amber-500 text-black':'bg-[#1A1A1A] border border-zinc-800 text-white'} rounded-[24px] p-6 aspect-square flex flex-col items-center justify-center relative overflow-hidden active:scale-95`}>
                 <div className="text-5xl mb-3">{etage.icon}</div>
                 <div className="font-black text-lg">{etage.label}</div>
                 <div className={`text-xs mt-1 ${etage.id==='GLOVO'?'text-black/60':'text-zinc-500'}`}>{etage.desc}</div>
                 <div className={`mt-3 px-3 py-1 rounded-full text-xs font-black ${etage.id==='GLOVO'?'bg-black text-yellow-400':'bg-zinc-800 text-white'}`}>{etage.count} tables</div>
-                {etage.id==='GLOVO' && <div className="absolute top-3 right-3 bg-black text-yellow-400 text-[9px] px-2 py-1 rounded-full font-black">💰 +30%</div>}
               </button>
             ))}
-          </div>
-
-          <div className="mt-8 bg-zinc-900 rounded-2xl p-4 border border-zinc-800">
-            <div className="text-xs text-zinc-500 text-center">TOTAL TABLES: {tables.length} • RDC {rdc.length} • 1er {premier.length} • Emporte {emporte.length} • Glovo {glovo.length}</div>
           </div>
         </div>
       </div>
     );
   }
 
-  // ETAPE 2: Choisir Table dyal dak Etage
   const filteredTables = tables.filter((t:any)=>{
     if(selectedEtage==='RDC') return t.etage==='RDC' || !t.etage;
     if(selectedEtage==='1er') return t.etage==='1er';
@@ -96,30 +84,21 @@ function TablesView({ onSelectTable, profil, onLogout }: any) {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <div className={`${selectedEtage==='GLOVO'?'bg-yellow-500 text-black':'bg-zinc-900 text-white'} p-3 flex justify-between items-center sticky top-0 z-20 border-b ${selectedEtage==='GLOVO'?'border-yellow-600':'border-zinc-800'}`}>
+      <div className={`${selectedEtage==='GLOVO'?'bg-yellow-500 text-black':'bg-zinc-900 text-white'} p-3 flex justify-between items-center sticky top-0 z-20 border-b`}>
         <div className="flex items-center gap-2">
           <button onClick={()=>setSelectedEtage(null)} className={`w-8 h-8 rounded-full flex items-center justify-center ${selectedEtage==='GLOVO'?'bg-black text-white':'bg-white/10'}`}><ArrowLeft className="w-4 h-4"/></button>
-          <div className="font-black text-sm">{etageInfo?.icon} {selectedEtage} - {filteredTables.length} tables {selectedEtage==='GLOVO'&&'💰'}</div>
+          <div className="font-black text-sm">{etageInfo?.icon} {selectedEtage} - {filteredTables.length} tables</div>
         </div>
-        <button onClick={onLogout} className={`${selectedEtage==='GLOVO'?'bg-black text-white':'bg-white text-black'} px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1`}><LogOut className="w-4 h-4"/>Logout</button>
+        <button onClick={onLogout} className={`${selectedEtage==='GLOVO'?'bg-black text-white':'bg-white text-black'} px-3 py-2 rounded-xl text-xs font-bold`}><LogOut className="w-4 h-4"/>Logout</button>
       </div>
-      
       <div className="p-4 max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-black">Tables {selectedEtage} - {filteredTables.length}</h2>
-          <button onClick={()=>setSelectedEtage(null)} className="text-xs bg-zinc-800 px-3 py-2 rounded-full">← Changer Zone</button>
-        </div>
-        
-        {filteredTables.length===0 && <div className="text-center text-zinc-500 mt-20">Aucune table dans {selectedEtage}<br/><button onClick={()=>setSelectedEtage(null)} className="mt-4 bg-orange-600 px-4 py-2 rounded-xl text-sm font-bold">Retour</button></div>}
-        
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
           {filteredTables.map((t) => {
             const s = getStatus(t.id);
             return (
-              <button key={t.id} onClick={() => onSelectTable(t)} className={`aspect-square rounded-2xl flex flex-col items-center justify-center border-2 active:scale-95 transition-all
-                ${s==='pret'?'bg-green-900/40 border-green-500':s==='en_cours'?'bg-blue-950/40 border-blue-600': selectedEtage==='GLOVO'?'bg-[#1A1A1A] border-yellow-900/50':selectedEtage==='RDC'?'bg-[#1A1A1A] border-green-900/30':selectedEtage==='1er'?'bg-[#1A1A1A] border-blue-900/30':'bg-[#1A1A1A] border-orange-900/30'}`}>
+              <button key={t.id} onClick={() => onSelectTable(t)} className={`aspect-square rounded-2xl flex flex-col items-center justify-center border-2 ${s==='pret'?'bg-green-900/40 border-green-500':s==='en_cours'?'bg-blue-950/40 border-blue-600':'bg-[#1A1A1A] border-zinc-800'}`}>
                 <div className="text-3xl font-black text-white">{t.numero}</div>
-                <div className={`text-[10px] font-bold mt-1 ${selectedEtage==='GLOVO'?'text-yellow-400':selectedEtage==='RDC'?'text-green-400':selectedEtage==='1er'?'text-blue-400':'text-orange-400'}`}>{selectedEtage} {selectedEtage==='GLOVO'&&'💰'}</div>
+                <div className="text-[10px] font-bold mt-1 text-zinc-500">{selectedEtage}</div>
                 <div className={`text-[10px] mt-1 px-2 py-0.5 rounded-full font-bold ${s==='libre'?'bg-zinc-800 text-zinc-400':s==='en_cours'?'bg-blue-600 text-white':'bg-green-600 text-white'}`}>{s}</div>
               </button>
             )
@@ -202,55 +181,158 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
     const lines = cartItems.map(([id,v])=>{
       const mm = menus.find(x=>x.id===id);
       const prix = getPrix(mm);
-      const notePart = v.note ? `<div style="font-size:15px; font-weight:900; color:#000; background:#ffeb3b; padding:3px 6px; margin-top:5px; border:2px solid #000;">⚠️ ${v.note.toUpperCase()}</div>` : '';
-      return `<div style="font-size:19px; font-weight:900; margin:12px 0; border-bottom:1px dotted #999; padding-bottom:8px;"><div>${v.qte}x ${mm?.nom} - ${prix} DH</div>${notePart}</div>`;
+      const notePart = v.note ? `<div style="font-size:16px; font-weight:900; color:#000; background:#ffeb3b; padding:4px 8px; margin-top:6px; border:2px solid #000;">⚠️ ${v.note.toUpperCase()}</div>` : '';
+      return `<div style="font-size:20px; font-weight:900; margin:14px 0; border-bottom:2px dotted #000; padding-bottom:10px;"><div>${v.qte}x ${mm?.nom} - ${prix} DH</div>${notePart}</div>`;
     }).join('');
-    return `<html><head><title>TABLE ${table.numero} - ${table.etage}</title><style>@page{size:80mm auto; margin:0} body{margin:0; font-family:monospace; width:72mm; padding:5mm;}</style></head><body>
-      <div style="text-align:center; font-size:22px; font-weight:900;">🍳 CUISINE - ${table.etage}</div>
-      <div style="text-align:center; font-size:13px;">MARSILIA FOOD - ${isGlovo?'GLOVO 💰':table.etage}</div>
-      <div style="border-top:2px dashed #000; margin:8px 0;"></div>
-      <div style="font-size:28px; font-weight:900; text-align:center;">TABLE ${table.numero} - ${table.etage}</div>
-      <div style="text-align:center; font-size:11px;">${date} | ${serveurNom} | TOTAL ${cartTotal.toFixed(0)} DH</div>
-      <div style="border-top:2px dashed #000; margin:8px 0;"></div>${lines}
-      <div style="border-top:2px dashed #000; margin:8px 0;"></div><div style="text-align:center; font-size:22px; font-weight:900;">A PREPARER - ${cartTotal.toFixed(0)} DH</div></body></html>`;
+    return `<div style="font-family:monospace; width:72mm; padding:4mm; background:white; color:black;">
+      <div style="text-align:center; font-size:24px; font-weight:900;">🍳 CUISINE</div>
+      <div style="text-align:center; font-size:14px; font-weight:700;">MARSILIA FOOD - ${table.etage}</div>
+      <div style="border-top:3px dashed #000; margin:10px 0;"></div>
+      <div style="font-size:32px; font-weight:900; text-align:center;">TABLE ${table.numero}<br>${table.etage}</div>
+      <div style="text-align:center; font-size:12px; margin:6px 0;">${date}<br>${serveurNom}<br><b>TOTAL ${cartTotal.toFixed(0)} DH</b></div>
+      <div style="border-top:3px dashed #000; margin:10px 0;"></div>${lines}
+      <div style="border-top:3px dashed #000; margin:10px 0;"></div>
+      <div style="text-align:center; font-size:26px; font-weight:900;">A PREPARER<br>${cartTotal.toFixed(0)} DH</div>
+      <div style="margin-top:20px; text-align:center; font-size:10px;">---</div>
+    </div>`;
   };
-  const printTicket = (html: string) => {
-    const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed; right:0; bottom:0; width:0; height:0; border:0;';
-    document.body.appendChild(iframe);
-    const doc = iframe.contentWindow?.document; if(!doc) return;
-    doc.open(); doc.write(html); doc.close(); iframe.contentWindow?.focus();
-    setTimeout(() => { iframe.contentWindow?.print(); setTimeout(() => { try{ document.body.removeChild(iframe);}catch(e){}}, 1000); }, 300);
-  };
-  const send = async () => {
-    if (cartItems.length === 0) return;
-    const ticketHtml = buildTicketHtml();
-    setSending(true);
-    try {
-      const { data: cmd } = await supabase.from('commandes').insert({ table_id: table.id, serveur_nom: serveurNom, statut: 'en_attente', total: cartTotal, etage: table.etage }).select().single();
-      if (cmd) {
-        const items = cartItems.map(([id, v]) => { const mm = menus.find((m) => m.id === id)!; return { commande_id: cmd.id, menu_id: id, qte: Number(v.qte), prix: getPrix(mm), menu_nom: mm.nom, note: v.note || null }; });
-        await supabase.from('commande_items').insert(items as any).then(async ({error})=>{
-          if(error){
-            const itemsMin = cartItems.map(([id, v]) => { const mm = menus.find((m) => m.id === id)!; return { commande_id: cmd.id, menu_id: id, qte: Number(v.qte), prix: getPrix(mm) }; });
-            await supabase.from('commande_items').insert(itemsMin as any);
-          }
-        });
-        await supabase.from('tables').update({ statut: 'en_cours' }).eq('id', table.id);
-        for (let i=0;i<cartItems.length;i++){
-          const menuId = cartItems[i][0] as string; const qte = cartItems[i][1].qte as number;
-          const recs = recettes.filter((r: any) => r.menu_id === menuId);
-          for (let j=0;j<recs.length;j++){ const r=recs[j]; const mp:any=matieres.find((x:any)=>x.id===r.matiere_id); if(!mp) continue; const nouveau=Math.max(0, Number(mp.quantite||0)-Number(r.qte_necessaire||0)*qte); await supabase.from('matiere_premiere').update({quantite:nouveau} as any).eq('id', mp.id); }
-        }
-        printTicket(ticketHtml);
+
+  const printTicket = (innerHtml: string) => {
+    // FIX PRINT - kaykhdam f telephone
+    const win = window.open('', '_blank', 'width=400,height=600');
+    if(!win){
+      // Fallback iframe
+      const iframe = document.createElement('iframe');
+      iframe.style.cssText = 'position:fixed; left:0; top:0; width:100%; height:100%; border:0; background:white; z-index:9999;';
+      document.body.appendChild(iframe);
+      const doc = iframe.contentWindow?.document;
+      if(doc){
+        doc.open();
+        doc.write(`<html><head><style>@page{size:80mm auto;margin:0} body{margin:0; padding:10px;}</style></head><body>${innerHtml}<script>setTimeout(()=>{window.print(); setTimeout(()=>{window.parent.document.body.removeChild(window.frameElement)},1000)},500)<\/script></body></html>`);
+        doc.close();
       }
-    } catch (e:any){ alert('Erreur: '+e.message); }
-    setSending(false); onBack();
+      return;
+    }
+    win.document.open();
+    win.document.write(`<html><head><title>TABLE ${table.numero}</title><style>@page{size:80mm auto;margin:0} body{margin:0; padding:0; background:white;} </style></head><body>${innerHtml}<script>setTimeout(()=>{window.print(); setTimeout(()=>window.close(),800)},400)<\/script></body></html>`);
+    win.document.close();
+  };
+
+  const send = async () => {
+    if (cartItems.length === 0) return alert('Panier khawi');
+    if (sending) return;
+    setSending(true);
+    
+    const ticketHtml = buildTicketHtml();
+    
+    try {
+      console.log('Sending commande...', table.id, cartTotal);
+      
+      // ===== FIX 1: N7aydo etage hit makaynach f table commandes =====
+      const { data: cmd, error: cmdError } = await supabase.from('commandes').insert({ 
+        table_id: table.id, 
+        serveur_nom: serveurNom, 
+        statut: 'en_attente', 
+        total: cartTotal
+      }).select().single();
+      
+      if(cmdError){
+        console.error('Erreur commande:', cmdError);
+        alert('Erreur commande: ' + cmdError.message);
+        setSending(false);
+        return;
+      }
+      
+      if (!cmd) {
+        alert('Erreur: commande ma tcreatch');
+        setSending(false);
+        return;
+      }
+
+      console.log('Commande créée:', cmd.id);
+
+      // ===== FIX 2: N7aydo note w menu_nom ila makayninch =====
+      // Njarbo lwl b kolchi, ila fail njarbo ghir minimal
+      let itemsInserted = false;
+      
+      // Try 1: avec note et menu_nom
+      try{
+        const itemsFull = cartItems.map(([id, v]) => { 
+          const mm = menus.find((m) => m.id === id)!; 
+          return { commande_id: cmd.id, menu_id: id, qte: Number(v.qte), prix: getPrix(mm), menu_nom: mm.nom, note: v.note || null }; 
+        });
+        const { error } = await supabase.from('commande_items').insert(itemsFull as any);
+        if(!error) itemsInserted = true;
+        else {
+          console.log('Try full failed, try minimal:', error.message);
+          // Try 2: sans note
+          const itemsNoNote = cartItems.map(([id, v]) => { 
+            const mm = menus.find((m) => m.id === id)!; 
+            return { commande_id: cmd.id, menu_id: id, qte: Number(v.qte), prix: getPrix(mm), menu_nom: mm.nom }; 
+          });
+          const { error: e2 } = await supabase.from('commande_items').insert(itemsNoNote as any);
+          if(!e2) itemsInserted = true;
+          else {
+            console.log('Try no note failed:', e2.message);
+            // Try 3: minimal ghir li darori
+            const itemsMin = cartItems.map(([id, v]) => { 
+              const mm = menus.find((m) => m.id === id)!; 
+              return { commande_id: cmd.id, menu_id: id, qte: Number(v.qte), prix: getPrix(mm) }; 
+            });
+            const { error: e3 } = await supabase.from('commande_items').insert(itemsMin as any);
+            if(!e3) itemsInserted = true;
+            else {
+              console.error('All tries failed:', e3);
+              alert('Erreur items: ' + e3.message);
+            }
+          }
+        }
+      }catch(err:any){
+        console.error('Exception items:', err);
+      }
+
+      if(!itemsInserted){
+        // Nms7o commande ila items ma dkhloch
+        await supabase.from('commandes').delete().eq('id', cmd.id);
+        alert('Erreur: items ma dkhloch');
+        setSending(false);
+        return;
+      }
+
+      // Update table
+      await supabase.from('tables').update({ statut: 'en_cours' }).eq('id', table.id);
+
+      // Update stock
+      for (let i=0;i<cartItems.length;i++){
+        const menuId = cartItems[i][0] as string; const qte = cartItems[i][1].qte as number;
+        const recs = recettes.filter((r: any) => r.menu_id === menuId);
+        for (let j=0;j<recs.length;j++){ 
+          const r=recs[j]; 
+          const mp:any=matieres.find((x:any)=>x.id===r.matiere_id); 
+          if(!mp) continue; 
+          const nouveau=Math.max(0, Number(mp.quantite||0)-Number(r.qte_necessaire||0)*qte); 
+          await supabase.from('matiere_premiere').update({quantite:nouveau} as any).eq('id', mp.id); 
+        }
+      }
+
+      // PRINT TICKET
+      console.log('Printing ticket...');
+      printTicket(ticketHtml);
+
+      alert(`✅ Commande Table ${table.numero} tsiftat l cuisine\nTOTAL ${cartTotal} DH`);
+      
+      setSending(false);
+      onBack();
+      
+    } catch (e:any){ 
+      console.error('Exception send:', e);
+      alert('Erreur: '+e.message); 
+      setSending(false);
+    }
   };
 
   if (loading) return <div className="flex justify-center py-12"><div className="w-8 h-8 border-2 border-[#FF6B00] border-t-transparent rounded-full animate-spin" /></div>;
 
-  // ETAPE 3: Categories
   if (!selectedCat) {
     const catIcons: any = {
       'FTOUR': '🍳', 'PETIT-DÉJEUNER': '🍳', 'PETIT-DEJEUNER': '🍳',
@@ -266,7 +348,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
         <div className={`sticky top-0 z-30 backdrop-blur-xl border-b px-4 py-3 ${isGlovo?'bg-yellow-500 text-black border-yellow-600':'bg-[#050505]/90 border-white/[0.08] text-white'}`}>
           <div className="flex items-center gap-3 max-w-4xl mx-auto">
             <button onClick={onBack} className={`w-9 h-9 rounded-full flex items-center justify-center ${isGlovo?'bg-black text-white':'bg-white/[0.08]'}`}><ArrowLeft className="w-5 h-5" /></button>
-            <div><h2 className="font-black text-[14px]">TABLE {table.numero} • {table.etage} {isGlovo&&'💰 GLOVO'}</h2><p className={`text-[11px] ${isGlovo?'text-black/70':'text-white/40'}`}>{serveurNom} • {isGlovo?'Prix Glovo':'Choisir Catégorie'}</p></div>
+            <div><h2 className="font-black text-[14px]">TABLE {table.numero} • {table.etage} {isGlovo&&'💰 GLOVO'}</h2><p className={`text-[11px] ${isGlovo?'text-black/70':'text-white/40'}`}>{serveurNom} • Choisir Catégorie</p></div>
           </div>
         </div>
         <div className="p-3 max-w-4xl mx-auto">
@@ -275,7 +357,7 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
               const isZak = cat.nom.toUpperCase().includes('ZAKARIYA');
               const icon = catIcons[cat.nom] || catIcons[cat.nom.toUpperCase()] || '🍽️';
               return (
-                <button key={cat.id} onClick={() => setSelectedCat(cat.nom)} className={`group relative h-[86px] rounded-[16px] p-[1px] text-left active:scale-[0.97] ${isZak ? 'bg-gradient-to-br from-yellow-300 to-amber-500' : 'bg-gradient-to-br from-blue-900/50 via-blue-800/20 to-transparent'}`}>
+                <button key={cat.id} onClick={() => setSelectedCat(cat.nom)} className={`h-[86px] rounded-[16px] p-[1px] text-left active:scale-[0.97] ${isZak ? 'bg-gradient-to-br from-yellow-300 to-amber-500' : 'bg-gradient-to-br from-blue-900/50 via-blue-800/20 to-transparent'}`}>
                   <div className={`w-full h-full rounded-[15px] flex items-center gap-3 px-4 ${isZak ? 'bg-gradient-to-br from-yellow-400 to-orange-500' : 'bg-[#121212]'}`}>
                     <div className="text-[28px]">{icon}</div>
                     <div className="flex-1 min-w-0"><div className={`font-black text-[11px] uppercase ${isZak ? 'text-black' : 'text-white'}`}>{cat.nom}</div></div>
@@ -297,24 +379,23 @@ function CommandeView({ table, serveurNom, onBack }: { table: any; serveurNom: s
     );
   }
 
-  // ETAPE 4: Les Repas
   const filteredMenus = menus.filter(m => m.categorie === selectedCat);
   return (
     <div className="min-h-screen bg-[#0A0A0A] pb-44">
       <div className={`sticky top-0 z-30 border-b px-4 py-3 ${isGlovo?'bg-yellow-500 border-yellow-600 text-black':'bg-[#0A0A0A]/95 border-gray-800 text-white'}`}>
         <div className="flex items-center gap-3 max-w-4xl mx-auto">
           <button onClick={() => setSelectedCat(null)} className={`p-2 rounded-lg ${isGlovo?'bg-black text-white':'bg-[#1A1A1A]'}`}><ArrowLeft className="w-5 h-5" /></button>
-          <div><h2 className="font-bold">{catLabel(selectedCat)} - T{table.numero} {isGlovo&&'💰'}</h2><p className={`text-xs ${isGlovo?'text-black/70':'text-gray-500'}`}>{filteredMenus.length} plats • {table.etage}</p></div>
+          <div><h2 className="font-bold">{catLabel(selectedCat)} - T{table.numero}</h2><p className="text-xs text-gray-500">{filteredMenus.length} plats</p></div>
         </div>
       </div>
       <div className="p-4 max-w-4xl mx-auto">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {filteredMenus.map((m) => {
-            const rupt = checkRupture(m.id, 0); const isRupt = !!rupt; const inCart = cart[m.id]?.qte || 0; const prix = getPrix(m); const prixNormal = Number(m.prix);
+            const rupt = checkRupture(m.id, 0); const isRupt = !!rupt; const inCart = cart[m.id]?.qte || 0; const prix = getPrix(m);
             return (
               <div key={m.id} className={`bg-[#1A1A1A] rounded-2xl overflow-hidden border ${isRupt? 'border-red-700 opacity-60' : inCart? 'border-[#FF6B00]' : 'border-gray-800'}`}>
-                <div className="relative h-24 bg-gray-900">{m.image_url? <img src={m.image_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon className="w-8 h-8 text-gray-700" /></div>}{inCart > 0 && <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-[#FF6B00] text-white text-xs font-bold flex items-center justify-center">{inCart}</div>}{isGlovo && <div className="absolute bottom-1 left-1 bg-yellow-500 text-black text-[9px] px-1.5 py-0.5 rounded-full font-black">GLOVO</div>}</div>
-                <div className="p-2.5"><h4 className="text-white text-sm font-semibold truncate">{m.nom}</h4><div className="flex items-center justify-between mt-1.5"><div><span className="text-[#FF6B00] font-bold text-sm">{prix.toFixed(0)} DH</span>{isGlovo && prix!==prixNormal && <span className="text-zinc-500 text-[10px] line-through ml-1">{prixNormal.toFixed(0)}</span>}</div>
+                <div className="relative h-24 bg-gray-900">{m.image_url? <img src={m.image_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon className="w-8 h-8 text-gray-700" /></div>}{inCart > 0 && <div className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-[#FF6B00] text-white text-xs font-bold flex items-center justify-center">{inCart}</div>}</div>
+                <div className="p-2.5"><h4 className="text-white text-sm font-semibold truncate">{m.nom}</h4><div className="flex items-center justify-between mt-1.5"><span className="text-[#FF6B00] font-bold text-sm">{prix.toFixed(0)} DH</span>
                   {isRupt? <span className="text-red-400 text-[9px] font-bold">RUPTURE</span> : inCart? <div className="flex items-center gap-1"><button onClick={() => remove(m.id)} className="w-6 h-6 rounded-lg bg-gray-800 text-white flex items-center justify-center"><Minus className="w-3 h-3" /></button><span className="text-white text-sm w-5 text-center">{inCart}</span><button onClick={() => add(m.id)} className="w-6 h-6 rounded-lg bg-[#FF6B00] text-white flex items-center justify-center"><Plus className="w-3 h-3" /></button></div> : <button onClick={() => add(m.id)} className="w-7 h-7 rounded-lg bg-[#FF6B00] text-white flex items-center justify-center"><Plus className="w-4 h-4" /></button>}
                 </div></div>
               </div>
