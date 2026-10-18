@@ -16,12 +16,10 @@ function TablesView({ onSelectTable, profil, onLogout }: any) {
   const [commandes, setCommandes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
-    // 👉 7ayadna GLOVO man serveur - mayjibch tables dyal GLOVO
     const [{ data: t }, { data: c }] = await Promise.all([
       supabase.from('tables').select('*').neq('etage','GLOVO').order('etage').order('numero'),
       supabase.from('commandes').select('*').in('statut', ['en_attente', 'en_preparation', 'pret']),
     ]);
-    // Filter zyada f client - 7ayad GLOVO
     const filtered = (t||[]).filter((x:any)=> x.etage !== 'GLOVO');
     setTables(filtered); setCommandes(c || []); setLoading(false);
   }, []);
@@ -45,7 +43,7 @@ function TablesView({ onSelectTable, profil, onLogout }: any) {
         <button onClick={onLogout} className="bg-black text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1"><LogOut className="w-4 h-4"/>Logout</button>
       </div>
       <div className="p-4 max-w-4xl mx-auto">
-        <h2 className="text-xl font-bold text-white mb-6">Tables - {tables.length} (Sans GLOVO)</h2>
+        <h2 className="text-xl font-bold text-white mb-6">Tables - {tables.length}</h2>
         
         {rdc.length>0 && (
           <div className="mb-8">
