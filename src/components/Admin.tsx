@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Edit3, Trash2, X, Image as ImageIcon, Upload } from 'lucide-react';
+import { Edit3, Trash2, X, Image as ImageIcon, Upload, BarChart3, Users, MapPin, Clock, Utensils, TrendingUp, AlertTriangle } from 'lucide-react';
 
 export default function Admin(){
   const [tab,setTab]=useState('rapports');
@@ -81,7 +81,7 @@ function CatForm({cat,onClose,onSaved}:any){const [nom,setNom]=useState(cat?.nom
 function UsersTab(){const [users,setUsers]=useState<any[]>([]);const [show,setShow]=useState(false);const [edit,setEdit]=useState<any>(null);const load=useCallback(async()=>{const {data}=await supabase.from('utilisateurs').select('*').order('created_at',{ascending:false});setUsers(data||[]);},[]);useEffect(()=>{load();},[load]);return <div><div className="flex justify-between mb-3"><h2 className="font-bold">Users {users.length}</h2><button onClick={()=>{setEdit(null);setShow(true);}} className="bg-orange-600 px-4 py-2 rounded-xl font-bold">+ User</button></div>{users.map((u:any)=><div key={u.id} className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 flex justify-between mb-2"><div><div className="font-bold">{u.nom} <span className="text-xs bg-zinc-800 px-2 py-1 rounded-lg ml-2">{u.role}</span></div><div className="text-xs text-zinc-500">ID: {u.identifiant} | {u.code_acces}</div></div><div className="flex gap-1"><button onClick={()=>{setEdit(u);setShow(true);}} className="p-2.5 bg-zinc-800 rounded-xl"><Edit3 className="w-4 h-4"/></button><button onClick={async()=>{if(confirm('Supprimer?')){await supabase.from('utilisateurs').delete().eq('id',u.id);load();}}} className="p-2.5 bg-red-900 rounded-xl"><Trash2 className="w-4 h-4"/></button></div></div>)}{show&&<UserForm user={edit} onClose={()=>{setShow(false);setEdit(null);}} onSaved={load}/>}</div>}
 function UserForm({user,onClose,onSaved}:any){const [nom,setNom]=useState(user?.nom||'');const [ident,setIdent]=useState(user?.identifiant||'');const [code,setCode]=useState(user?.code_acces||'');const [role,setRole]=useState(user?.role||'serveur');const save=async()=>{ if(!nom||!ident||!code) return alert('3amar'); const payload:any={ nom, identifiant: ident.trim(), code_acces: code.trim(), role }; let error; if(user){ const res=await supabase.from('utilisateurs').update(payload).eq('id',user.id); error=res.error; } else { const res=await supabase.from('utilisateurs').insert(payload); error=res.error; } if(error){ alert(error.message); return; } onSaved(); onClose(); };return <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"><div className="bg-zinc-900 rounded-2xl w-full max-w-md border border-zinc-800 p-5 space-y-3"><div className="flex justify-between"><h3 className="font-bold">{user?'Modifier':'Nouveau'} User</h3><button onClick={onClose}><X className="w-5 h-5"/></button></div><input value={nom} onChange={e=>setNom(e.target.value)} placeholder="Nom" className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"/><input value={ident} onChange={e=>setIdent(e.target.value)} placeholder="Identifiant" className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"/><input value={code} onChange={e=>setCode(e.target.value)} placeholder="Code" className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"/><select value={role} onChange={e=>setRole(e.target.value)} className="w-full bg-black p-3.5 rounded-xl border border-zinc-700"><option value="admin">admin</option><option value="serveur">serveur</option><option value="cuisine">cuisine</option><option value="caisse">caisse</option></select><div className="flex gap-2"><button onClick={onClose} className="flex-1 bg-zinc-800 py-3.5 rounded-xl">Annuler</button><button onClick={save} className="flex-1 bg-orange-600 py-3.5 rounded-xl font-bold">Sauver</button></div></div></div>}
 
-// ===== RAPPORTS TAB JDID - FIHA ANNULE + COMMANDE KAMLA + ESPECE/TPE/CHEQUE/OFFERT/REMISE =====
+// ===== RAPPORT COMPLET - ACHNO KAYW9A3 F RESTAURANT =====
 function RapportsTab(){
   const [date,setDate]=useState(new Date().toISOString().split('T')[0]);
   const [cmds,setCmds]=useState<any[]>([]);
@@ -123,59 +123,59 @@ function RapportsTab(){
 
   useEffect(()=>{ load(); },[load]);
 
-  const getTableLabel=(c:any)=>{ const t=tableMap[c.table_id]; if(t) return `T${t.numero} ${t.etage||'RDC'}`; if(c.table_numero) return `T${c.table_numero}`; return 'Table?'; };
+  const getTableLabel=(c:any)=>{ const t=tableMap[c.table_id]; if(t) return `T${t.numero} ${t.etage}`; if(c.table_numero) return `T${c.table_numero}`; return 'Table?'; };
+  const getEtage=(c:any)=>{ const t=tableMap[c.table_id]; return t?.etage||'Inconnu'; };
 
-  const getBadge=(method:any, remise:any)=>{
-    const m=(method||'').toLowerCase();
-    if(m==='espece') return <span className="bg-green-600 text-white px-2 py-1 rounded-full text-[10px] font-black">ESPECE</span>;
-    if(m==='tpe') return <span className="bg-blue-600 text-white px-2 py-1 rounded-full text-[10px] font-black">TPE</span>;
-    if(m==='cheque') return <span className="bg-purple-600 text-white px-2 py-1 rounded-full text-[10px] font-black">CHEQUE</span>;
-    if(m==='offert') return <span className="bg-orange-600 text-white px-2 py-1 rounded-full text-[10px] font-black">OFFERT</span>;
-    if(m==='remise') return <span className="bg-yellow-500 text-black px-2 py-1 rounded-full text-[10px] font-black">REMISE {remise||0}%</span>;
-    if(m==='mixte') return <span className="bg-white text-black border-2 border-orange-500 px-2 py-1 rounded-full text-[10px] font-black">MIXTE</span>;
-    if(m==='annule') return <span className="bg-red-600 text-white px-2 py-1 rounded-full text-[10px] font-black">ANNULE</span>;
-    return <span className="bg-zinc-700 px-2 py-1 rounded-full text-[10px]">{m.toUpperCase()}</span>;
-  };
-
-  const getItemBadge=(it:any)=>{
-    const m=(it.payment_method||'espece').toLowerCase();
-    const p=it.remise_percent||0;
-    if(m==='espece') return <span className="bg-green-900 text-green-300 px-1.5 py-0.5 rounded text-[9px] font-bold ml-1">ESP</span>;
-    if(m==='tpe') return <span className="bg-blue-900 text-blue-300 px-1.5 py-0.5 rounded text-[9px] font-bold ml-1">TPE</span>;
-    if(m==='cheque') return <span className="bg-purple-900 text-purple-300 px-1.5 py-0.5 rounded text-[9px] font-bold ml-1">CHQ</span>;
-    if(m==='offert') return <span className="bg-orange-900 text-orange-300 px-1.5 py-0.5 rounded text-[9px] font-bold ml-1">OFF</span>;
-    if(m==='remise') return <span className="bg-yellow-900 text-yellow-300 px-1.5 py-0.5 rounded text-[9px] font-bold ml-1">-{p}%</span>;
-    return null;
-  };
-
-  const totals=(()=>{
-    let espece=0,tpe=0,cheque=0,offert=0,remise=0;
+  // === CALCULS ===
+  const stats=(()=>{
+    let espece=0,tpe=0,cheque=0,offertReel=0,remiseEncaisse=0,remisePerte=0,totalReel=0,totalEncaisse=0,totalItems=0;
+    let byHour:any={}; let byPlat:any={}; let byServeur:any={}; let byEtage:any={};
+    
     cmds.forEach((c:any)=>{
+      const hour=new Date(c.paye_at||c.created_at).getHours();
+      byHour[hour]=(byHour[hour]||0)+Number(c.total_final??c.total??0);
+      const serveur=c.serveur_nom||'Inconnu';
+      byServeur[serveur]=(byServeur[serveur]||0)+Number(c.total_final??c.total??0);
+      byServeur[serveur+'_count']=(byServeur[serveur+'_count']||0)+1;
+      const etage=getEtage(c);
+      byEtage[etage]=(byEtage[etage]||0)+Number(c.total_final??c.total??0);
+      byEtage[etage+'_count']=(byEtage[etage+'_count']||0)+1;
+      
       const method=(c.payment_method||'').toLowerCase();
       const its=itemsMap[c.id]||[];
+      totalItems+=its.length;
+      its.forEach((it:any)=>{
+        const key=it.menu_nom||it.nom||'Autre';
+        byPlat[key]=(byPlat[key]||0)+Number(it.qte||1);
+        byPlat[key+'_ca']=(byPlat[key+'_ca']||0)+Number(it.qte||1)*Number(it.prix||0);
+      });
+      
       if(method==='mixte'){
         its.forEach((it:any)=>{
           const m=(it.payment_method||'espece').toLowerCase();
           const prix=Number(it.qte||1)*Number(it.prix||0);
           const perc=Number(it.remise_percent||0);
           const finalP=m==='offert'?0:m==='remise'?prix-prix*perc/100:prix;
-          if(m==='espece') espece+=finalP;
-          else if(m==='tpe') tpe+=finalP;
-          else if(m==='cheque') cheque+=finalP;
-          else if(m==='offert') offert+=prix;
-          else if(m==='remise') remise+=finalP;
+          totalReel+=prix;
+          if(m==='espece'){ espece+=finalP; totalEncaisse+=finalP; }
+          else if(m==='tpe'){ tpe+=finalP; totalEncaisse+=finalP; }
+          else if(m==='cheque'){ cheque+=finalP; totalEncaisse+=finalP; }
+          else if(m==='offert'){ offertReel+=prix; }
+          else if(m==='remise'){ remiseEncaisse+=finalP; remisePerte+=prix-finalP; totalEncaisse+=finalP; totalReel+=0; }
         });
       }else{
         const tot=Number(c.total_final??c.total??0);
         const totReel=Number(c.total??0);
-        if(method==='espece') espece+=tot;
-        else if(method==='tpe') tpe+=tot;
-        else if(method==='cheque') cheque+=tot;
-        else if(method==='offert') offert+=totReel;
-        else if(method==='remise') remise+=tot;
+        totalReel+=totReel;
+        if(method==='espece'){ espece+=tot; totalEncaisse+=tot; }
+        else if(method==='tpe'){ tpe+=tot; totalEncaisse+=tot; }
+        else if(method==='cheque'){ cheque+=tot; totalEncaisse+=tot; }
+        else if(method==='offert'){ offertReel+=totReel; }
+        else if(method==='remise'){ remiseEncaisse+=tot; remisePerte+=totReel-tot; totalEncaisse+=tot; }
+        else { espece+=tot; totalEncaisse+=tot; }
       }
     });
-    return {espece,tpe,cheque,offert,remise,total:espece+tpe+cheque+remise};
+    return {espece,tpe,cheque,offertReel,remiseEncaisse,remisePerte,totalReel,totalEncaisse,totalItems,byHour,byPlat,byServeur,byEtage};
   })();
 
   const totalsAnnule=annules.reduce((s:any,c:any)=>{
@@ -184,39 +184,114 @@ function RapportsTab(){
     return s+t;
   },0);
 
+  const topPlats=Object.keys(stats.byPlat).filter(k=>!k.endsWith('_ca')).sort((a,b)=>stats.byPlat[b]-stats.byPlat[a]).slice(0,10);
+  const topServeurs=Object.keys(stats.byServeur).filter(k=>!k.endsWith('_count')).sort((a,b)=>stats.byServeur[b]-stats.byServeur[a]);
+  const topEtages=Object.keys(stats.byEtage).filter(k=>!k.endsWith('_count'));
+  const hoursSorted=Object.keys(stats.byHour).sort((a,b)=>Number(a)-Number(b));
+
   if(loading) return <div className="p-8 text-center">Chargement...</div>;
 
-  return <div>
-    <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-3 mb-3"/>
+  return <div className="space-y-4">
+    <div className="flex gap-2">
+      <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-3 font-bold"/>
+      <button onClick={load} className="bg-orange-600 px-4 rounded-xl font-black">Refresh</button>
+    </div>
     
-    <div className="bg-zinc-900 rounded-2xl p-4 text-center font-black text-xl mb-3 border border-zinc-700">
-      {totals.total.toFixed(0)} DH - {cmds.length} PAYE + {annules.length} ANNULE
+    {/* RESUME PRINCIPAL */}
+    <div className="bg-gradient-to-br from-zinc-900 to-black rounded-2xl p-4 border-2 border-orange-500/30">
+      <div className="flex justify-between items-center mb-3">
+        <h2 className="font-black text-lg flex items-center gap-2"><BarChart3 className="w-5 h-5 text-orange-500"/> RAPPORT {date}</h2>
+        <span className="text-xs bg-zinc-800 px-2 py-1 rounded-full">{cmds.length} commandes payées</span>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-black rounded-xl p-3 border border-green-800"><div className="text-[10px] text-zinc-400">CA ENCAISSÉ</div><div className="font-black text-2xl text-green-400">{stats.totalEncaisse.toFixed(0)} DH</div><div className="text-[10px] text-zinc-500">{cmds.length} tickets • {stats.totalItems} plats • Panier {(cmds.length?stats.totalEncaisse/cmds.length:0).toFixed(0)} DH</div></div>
+        <div className="bg-black rounded-xl p-3 border border-zinc-700"><div className="text-[10px] text-zinc-400">CA RÉEL</div><div className="font-black text-xl text-white">{stats.totalReel.toFixed(0)} DH</div><div className="text-[10px] text-orange-400">Perte: {(stats.offertReel+stats.remisePerte).toFixed(0)} DH</div></div>
+      </div>
     </div>
 
-    <div className="grid grid-cols-3 gap-2 mb-4 text-center">
-      <div className="bg-green-900/30 border border-green-700 rounded-xl p-2"><div className="text-[9px] text-green-300">ESPECE</div><div className="font-bold text-green-400 text-sm">{totals.espece.toFixed(0)}</div></div>
-      <div className="bg-blue-900/30 border border-blue-700 rounded-xl p-2"><div className="text-[9px] text-blue-300">TPE</div><div className="font-bold text-blue-400 text-sm">{totals.tpe.toFixed(0)}</div></div>
-      <div className="bg-purple-900/30 border border-purple-700 rounded-xl p-2"><div className="text-[9px] text-purple-300">CHEQUE</div><div className="font-bold text-purple-400 text-sm">{totals.cheque.toFixed(0)}</div></div>
-      <div className="bg-yellow-900/40 border border-yellow-600 rounded-xl p-2"><div className="text-[9px] text-yellow-300">REMISE</div><div className="font-bold text-yellow-400 text-sm">{totals.remise.toFixed(0)}</div></div>
-      <div className="bg-orange-900/30 border border-orange-700 rounded-xl p-2"><div className="text-[9px] text-orange-300">OFFERT</div><div className="font-bold text-orange-400 text-sm">{totals.offert.toFixed(0)}</div></div>
-      <div className="bg-red-950/50 border-2 border-red-600 rounded-xl p-2"><div className="text-[9px] text-red-300 font-black">ANNULE</div><div className="font-bold text-red-400 text-sm">{totalsAnnule.toFixed(0)}</div><div className="text-[9px] text-red-300">{annules.length} cmd</div></div>
+    {/* PAIEMENT */}
+    <div className="grid grid-cols-3 gap-2">
+      <div className="bg-green-950/40 border border-green-700 rounded-xl p-3 text-center"><div className="text-[10px] text-green-300">ESPECE</div><div className="font-black text-green-400">{stats.espece.toFixed(0)}</div><div className="text-[9px] text-zinc-400">{stats.totalEncaisse?((stats.espece/stats.totalEncaisse)*100).toFixed(0):0}%</div></div>
+      <div className="bg-blue-950/40 border border-blue-700 rounded-xl p-3 text-center"><div className="text-[10px] text-blue-300">TPE</div><div className="font-black text-blue-400">{stats.tpe.toFixed(0)}</div><div className="text-[9px] text-zinc-400">{stats.totalEncaisse?((stats.tpe/stats.totalEncaisse)*100).toFixed(0):0}%</div></div>
+      <div className="bg-purple-950/40 border border-purple-700 rounded-xl p-3 text-center"><div className="text-[10px] text-purple-300">CHEQUE</div><div className="font-black text-purple-400">{stats.cheque.toFixed(0)}</div><div className="text-[9px] text-zinc-400">{stats.totalEncaisse?((stats.cheque/stats.totalEncaisse)*100).toFixed(0):0}%</div></div>
+      <div className="bg-yellow-950/40 border border-yellow-600 rounded-xl p-3 text-center"><div className="text-[10px] text-yellow-300">REMISE</div><div className="font-black text-yellow-400">{stats.remiseEncaisse.toFixed(0)}</div><div className="text-[9px] text-red-400">Perte {stats.remisePerte.toFixed(0)}</div></div>
+      <div className="bg-orange-950/40 border border-orange-700 rounded-xl p-3 text-center"><div className="text-[10px] text-orange-300">OFFERT</div><div className="font-black text-orange-400">{stats.offertReel.toFixed(0)}</div><div className="text-[9px] text-zinc-400">{cmds.filter((c:any)=>c.payment_method==='offert').length} tickets</div></div>
+      <div className="bg-red-950/50 border-2 border-red-600 rounded-xl p-3 text-center"><div className="text-[10px] text-red-300 font-black">ANNULE</div><div className="font-black text-red-400">{totalsAnnule.toFixed(0)}</div><div className="text-[9px] text-red-300">{annules.length} cmds</div></div>
     </div>
 
+    {/* PAR HEURE */}
+    {hoursSorted.length>0 && (
+      <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800">
+        <h3 className="font-black mb-3 flex items-center gap-2"><Clock className="w-4 h-4 text-orange-500"/> PAR HEURE - PIC D'AFFLUENCE</h3>
+        <div className="space-y-2">
+          {hoursSorted.map((h:any)=>{
+            const max=Math.max(...Object.values(stats.byHour) as any);
+            const val=stats.byHour[h];
+            const pct=max? (val/max)*100 : 0;
+            return <div key={h} className="flex items-center gap-2"><div className="w-12 text-xs font-bold">{h}h</div><div className="flex-1 bg-black rounded-full h-6 overflow-hidden"><div className="bg-orange-600 h-6 flex items-center justify-end pr-2 text-[10px] font-black" style={{width:`${pct}%`}}>{val.toFixed(0)} DH</div></div></div>
+          })}
+        </div>
+      </div>
+    )}
+
+    {/* TOP PLATS */}
+    {topPlats.length>0 && (
+      <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800">
+        <h3 className="font-black mb-3 flex items-center gap-2"><Utensils className="w-4 h-4 text-green-500"/> TOP 10 PLATS VENDUS</h3>
+        <div className="space-y-2">
+          {topPlats.map((plat:any,i:any)=>{
+            const max=stats.byPlat[topPlats[0]]||1;
+            const qte=stats.byPlat[plat];
+            const ca=stats.byPlat[plat+'_ca']||0;
+            return <div key={plat} className="flex justify-between items-center bg-black rounded-xl p-2.5 border border-zinc-800"><div className="flex items-center gap-2"><span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${i===0?'bg-yellow-500 text-black':i===1?'bg-zinc-400 text-black':i===2?'bg-orange-600 text-white':'bg-zinc-800'}`}>{i+1}</span><span className="font-bold text-sm">{plat}</span></div><div className="text-right"><div className="font-black text-white">{qte}x</div><div className="text-[10px] text-zinc-400">{ca.toFixed(0)} DH</div></div></div>
+          })}
+        </div>
+      </div>
+    )}
+
+    {/* PAR SERVEUR + PAR ETAGE */}
+    <div className="grid grid-cols-2 gap-3">
+      <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800">
+        <h3 className="font-black mb-3 flex items-center gap-2 text-sm"><Users className="w-4 h-4 text-blue-500"/> PAR SERVEUR</h3>
+        {topServeurs.map((s:any)=><div key={s} className="flex justify-between py-1.5 border-b border-zinc-800 last:border-0"><div><div className="font-bold text-sm">{s}</div><div className="text-[10px] text-zinc-500">{stats.byServeur[s+'_count']} cmds</div></div><div className="font-black text-sm">{stats.byServeur[s].toFixed(0)} DH</div></div>)}
+        {topServeurs.length===0 && <div className="text-xs text-zinc-500">Aucun serveur</div>}
+      </div>
+      <div className="bg-zinc-900 rounded-2xl p-4 border border-zinc-800">
+        <h3 className="font-black mb-3 flex items-center gap-2 text-sm"><MapPin className="w-4 h-4 text-purple-500"/> PAR ÉTAGE</h3>
+        {topEtages.map((e:any)=><div key={e} className="flex justify-between py-1.5 border-b border-zinc-800 last:border-0"><div><div className="font-bold text-sm">{e}</div><div className="text-[10px] text-zinc-500">{stats.byEtage[e+'_count']} cmds</div></div><div className="font-black text-sm">{stats.byEtage[e].toFixed(0)} DH</div></div>)}
+        {topEtages.length===0 && <div className="text-xs text-zinc-500">Aucun étage</div>}
+      </div>
+    </div>
+
+    {/* ALERTES */}
+    {(stats.offertReel>0 || totalsAnnule>0 || stats.remisePerte>0) && (
+      <div className="bg-red-950/20 border-2 border-red-800 rounded-2xl p-4">
+        <h3 className="font-black text-red-400 mb-2 flex items-center gap-2"><AlertTriangle className="w-4 h-4"/> PERTES & ALERTES</h3>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div><div className="text-[10px] text-orange-300">OFFERT</div><div className="font-black text-orange-400">{stats.offertReel.toFixed(0)} DH</div></div>
+          <div><div className="text-[10px] text-yellow-300">REMISE PERTE</div><div className="font-black text-yellow-400">{stats.remisePerte.toFixed(0)} DH</div></div>
+          <div><div className="text-[10px] text-red-300">ANNULE</div><div className="font-black text-red-400">{totalsAnnule.toFixed(0)} DH</div></div>
+        </div>
+        <div className="mt-3 bg-black rounded-xl p-3 text-center"><div className="text-xs text-zinc-400">TOTAL PERTE JOURNÉE</div><div className="font-black text-xl text-red-400">{(stats.offertReel+stats.remisePerte+totalsAnnule).toFixed(0)} DH</div><div className="text-[10px] text-zinc-500">Sur un CA réel de {stats.totalReel.toFixed(0)} DH = {stats.totalReel?(((stats.offertReel+stats.remisePerte+totalsAnnule)/stats.totalReel)*100).toFixed(1):0}% de perte</div></div>
+      </div>
+    )}
+
+    {/* LISTE ANNULEES */}
     {annules.length>0 && (
-      <div className="mb-6">
-        <h3 className="font-black text-red-400 mb-2">🚫 ANNULÉES ({annules.length}) - {totalsAnnule.toFixed(0)} DH</h3>
+      <div>
+        <h3 className="font-black text-red-400 mb-2">🚫 ANNULÉES ({annules.length}) - {totalsAnnule.toFixed(0)} DH DE PERTE</h3>
         {annules.map((c:any)=>{
           const its=annuleItemsMap[c.id]||[];
           const totalCmd=its.length? its.reduce((s:any,i:any)=>s+Number(i.qte||1)*Number(i.prix||0),0) : Number(c.total||0);
           return (
-            <div key={c.id} className="bg-red-950/20 border-2 border-red-800 rounded-xl p-3 mb-2">
+            <div key={c.id} className="bg-red-950/20 border border-red-800 rounded-xl p-3 mb-2">
               <div className="flex justify-between items-center mb-2">
                 <div className="flex items-center gap-2"><span className="font-black">{getTableLabel(c)}</span><span className="text-xs text-zinc-400">{c.serveur_nom}</span><span className="text-[10px] text-zinc-500">{new Date(c.created_at).toLocaleTimeString()}</span></div>
-                <div className="flex items-center gap-2">{getBadge('annule',0)}<span className="font-black text-red-400">{totalCmd.toFixed(0)} DH</span></div>
+                <span className="font-black text-red-400">{totalCmd.toFixed(0)} DH</span>
               </div>
               <div className="bg-black/60 rounded-lg p-2 space-y-1">
                 {its.map((it:any)=><div key={it.id} className="flex justify-between text-sm"><span className="text-zinc-300">{it.qte}x {it.menu_nom||it.nom}</span><span className="text-zinc-500">{(Number(it.qte)*Number(it.prix)).toFixed(0)} DH</span></div>)}
-                {its.length===0 && <div className="text-xs text-zinc-500">Commande annulée - {totalCmd.toFixed(0)} DH</div>}
+                {its.length===0 && <div className="text-xs text-zinc-500">Commande annulée</div>}
               </div>
             </div>
           )
@@ -224,35 +299,28 @@ function RapportsTab(){
       </div>
     )}
 
-    <h3 className="font-black text-green-400 mb-2">✅ PAYÉES ({cmds.length}) - {totals.total.toFixed(0)} DH</h3>
+    {/* LISTE PAYEES DETAILLEE */}
+    <h3 className="font-black text-green-400">✅ PAYÉES DETAILLEES ({cmds.length})</h3>
     {cmds.map((c:any)=>{
       const its=itemsMap[c.id]||[];
       return (
         <div key={c.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 mb-3">
           <div className="flex justify-between items-center mb-2">
-            <div className="flex items-center gap-2"><span className="font-black text-white">{getTableLabel(c)}</span><span className="text-xs text-zinc-400">{c.serveur_nom}</span><span className="text-[10px] text-zinc-500">{new Date(c.paye_at||c.created_at).toLocaleTimeString()}</span></div>
-            <div className="flex items-center gap-2">{getBadge(c.payment_method, c.remise_percent)}<span className="font-black text-orange-400">{Number(c.total_final??c.total??0).toFixed(0)} DH</span></div>
-          </div>
-          {(c.payment_method==='offert' || c.payment_method==='remise') && (
-            <div className={`mb-2 p-2 rounded-lg text-xs font-bold ${c.payment_method==='offert'?'bg-orange-900/50 text-orange-300':'bg-yellow-900/50 text-yellow-300'}`}>
-              {c.payment_method==='offert'? '🎁 COMMANDE OFFERTE' : `🏷️ REMISE ${c.remise_percent}% - Reel ${Number(c.total).toFixed(0)} DH → Payé ${Number(c.total_final).toFixed(0)} DH`}
+            <div className="flex items-center gap-2"><span className="font-black text-white">{getTableLabel(c)}</span><span className="text-xs bg-zinc-800 px-2 py-1 rounded-full">{getEtage(c)}</span><span className="text-xs text-zinc-400">{c.serveur_nom}</span><span className="text-[10px] text-zinc-500">{new Date(c.paye_at||c.created_at).toLocaleTimeString()}</span></div>
+            <div className="flex items-center gap-2">
+              <span className={`px-2 py-1 rounded-full text-[10px] font-black ${c.payment_method==='espece'?'bg-green-600':c.payment_method==='tpe'?'bg-blue-600':c.payment_method==='cheque'?'bg-purple-600':c.payment_method==='offert'?'bg-orange-600':c.payment_method==='remise'?'bg-yellow-500 text-black':'bg-white text-black'}`}>{c.payment_method?.toUpperCase()} {c.remise_percent?`-${c.remise_percent}%`:''}</span>
+              <span className="font-black text-orange-400">{Number(c.total_final??c.total??0).toFixed(0)} DH</span>
             </div>
-          )}
-          <div className="bg-black/60 rounded-lg p-2 space-y-1.5">
+          </div>
+          <div className="bg-black/60 rounded-lg p-2 space-y-1">
             {its.map((it:any)=>{
               const prix=Number(it.qte||1)*Number(it.prix||0);
-              const perc=Number(it.remise_percent||0);
               const m=(it.payment_method||'').toLowerCase();
-              const finalP=m==='offert'?0:m==='remise'? prix-prix*perc/100 : prix;
-              return (
-                <div key={it.id} className="flex justify-between items-center py-1 border-b border-zinc-800/50 last:border-0">
-                  <div className="flex items-center gap-1"><span className="bg-zinc-800 text-white text-xs font-bold w-6 h-6 rounded flex items-center justify-center">{it.qte}</span><span className="text-sm text-white">{it.menu_nom||it.nom}</span>{getItemBadge(it)}</div>
-                  <div className="text-right"><div className="text-sm font-bold text-white">{c.payment_method==='mixte'? `${finalP.toFixed(0)} DH` : `${prix.toFixed(0)} DH`}</div></div>
-                </div>
-              )
+              const perc=Number(it.remise_percent||0);
+              const finalP=m==='offert'?0:m==='remise'?prix-prix*perc/100:prix;
+              return <div key={it.id} className="flex justify-between text-sm py-1 border-b border-zinc-800/50 last:border-0"><span className="text-white">{it.qte}x {it.menu_nom||it.nom} {m!=='espece' && <span className="text-[9px] bg-zinc-800 px-1 rounded ml-1">{m.toUpperCase()} {perc?`-${perc}%`:''}</span>}</span><span className="text-zinc-400">{c.payment_method==='mixte'?`${finalP.toFixed(0)}`:`${prix.toFixed(0)}`} DH</span></div>
             })}
           </div>
-          <div className="mt-2 flex justify-between text-xs text-zinc-500"><span>{its.length} articles • {c.payment_method==='mixte'? 'Ticket mixte détaillé' : `Payé en ${c.payment_method}`}</span><span className="font-bold text-white">TOTAL: {Number(c.total_final??c.total).toFixed(0)} DH</span></div>
         </div>
       )
     })}
