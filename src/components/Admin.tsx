@@ -1,4 +1,4 @@
-// @ts-nocheck
+badal fi hada la9dim ndir copie colle // @ts-nocheck
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Edit3, Trash2, X, Image as ImageIcon, Upload, BarChart3, Package, Plus, ArrowLeft } from 'lucide-react';
